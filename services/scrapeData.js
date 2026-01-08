@@ -21,7 +21,8 @@ const initBrowser = async () => {
                 '--single-process',
                 '--disable-gpu'
             ],
-            executablePath: puppeteer.executablePath()
+            // executablePath: puppeteer.executablePath()
+            executablePath: '/opt/render/.cache/puppeteer/chrome/linux-143.0.7499.169/chrome-linux64/chrome'
         });
         page = await browser.newPage();
         await page.setViewport({ width: 1366, height: 768 });
