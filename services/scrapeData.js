@@ -6,61 +6,88 @@ puppeteer.use(StealthPlugin());
 let browser = null;
 let page = null;
 
-// browser open
 const initBrowser = async () => {
     try {
+        console.log("🔄 Launching Browser on Render...");
         browser = await puppeteer.launch({
             headless: "new",
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
+                '--disable-dev-shm-usage', // Memory ပြဿနာအတွက် အရေးကြီး
                 '--disable-accelerated-2d-canvas',
                 '--no-first-run',
                 '--no-zygote',
                 '--single-process',
-                '--disable-gpu'
-            ],
-            executablePath: puppeteer.executablePath()
+                '--disable-gpu',
+                '--disable-speech-api', // အသံပိုင်းဆိုင်ရာ ပိတ်မယ်
+                '--disable-background-networking',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-breakpad',
+                '--disable-client-side-phishing-detection',
+                '--disable-component-update',
+                '--disable-default-apps',
+                '--disable-domain-reliability',
+                '--disable-extensions',
+                '--disable-features=AudioServiceOutOfProcess',
+                '--disable-hang-monitor',
+                '--disable-ipc-flooding-protection',
+                '--disable-notifications',
+                '--disable-offer-store-unmasked-wallet-cards',
+                '--disable-popup-blocking',
+                '--disable-print-preview',
+                '--disable-prompt-on-repost',
+                '--disable-renderer-backgrounding',
+                '--disable-sync',
+                '--force-color-profile=srgb',
+                '--metrics-recording-only',
+                '--no-default-browser-check',
+                '--password-store=basic',
+                '--use-mock-keychain',
+            ]
         });
 
         page = await browser.newPage();
 
-        // 1. User Agent သတ်မှတ်ခြင်း (Bot လို့ မသိအောင်)
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36');
-
-        // 2. RAM ချွေတာရန် ပုံများ၊ CSS များနှင့် Fonts များကို ပိတ်ခြင်း
+        // =====================================================
+        // ⭐ အရေးကြီးဆုံးအချက်: Resource Blocker
+        // ပုံတွေ၊ Font တွေ၊ CSS တွေကို Block လုပ်မှ Render မှာ run နိုင်မယ်
+        // =====================================================
         await page.setRequestInterception(true);
         page.on('request', (req) => {
             const resourceType = req.resourceType();
-            if (resourceType === 'image' || resourceType === 'stylesheet' || resourceType === 'font') {
-                req.abort();
+            if (['image', 'stylesheet', 'font', 'media', 'script'].includes(resourceType)) {
+                // Script ကိုပါ ပိတ်ထားကြည့်မယ် (SET web က static data ပါရင် ရနိုင်တယ်)
+                // အကယ်၍ Data မရရင် 'script' ကို ဒီ list ထဲက ပြန်ထုတ်ပေးပါ
+                if(resourceType === 'script') req.continue(); // JS လိုရင် ဒါကိုဖွင့်
+                else req.abort();
             } else {
                 req.continue();
             }
         });
 
-        await page.setViewport({ width: 1366, height: 768 });
+        // Viewport အသေးဆုံးထားမယ် (RAM သက်သာအောင်)
+        await page.setViewport({ width: 800, height: 600 });
 
-        // 3. Website စတင်ဖွင့်ခြင်း (Timeout ကို 60s ထားထားပါတယ်)
+        // Timeout ကို 2 မိနစ်ထိ တိုးပေးမယ်
         await page.goto("https://www.set.or.th/en/home", {
-            waitUntil: 'networkidle2',
-            timeout: 60000
+            waitUntil: 'domcontentloaded', // networkidle2 ထက် ဒါက ပိုမြန်တယ်
+            timeout: 120000
         });
 
+        console.log("✅ Browser Ready on Render!");
         return true;
     } catch (err) {
         console.error("❌ Browser Init Error:", err.message);
+        if(browser) await browser.close();
         return false;
     }
 };
 
-// Close browser and clean ram
 const closeBrowser = async () => {
     if (browser) {
-        try {
-            await browser.close();
-        } catch (e) { /* ignore */ }
+        await browser.close();
         browser = null;
         page = null;
         console.log("🛑 Browser Closed (RAM Cleaned).");
@@ -70,22 +97,19 @@ const closeBrowser = async () => {
 const scrapeData = async () => {
     if (!browser || !page) {
         const success = await initBrowser();
-        if (!success) return null;
+        if(!success) return null;
     }
 
     try {
-        // 4. Page Reload လုပ်တဲ့အခါ Timeout ကို 60s အထိ တိုးပေးလိုက်ပါ
-        // စက္ကန့် ၃၀ က Render Free Tier မှာ တစ်ခါတလေ မလုံလောက်လို့ပါ
-        await page.reload({ waitUntil: 'networkidle2', timeout: 60000 });
+        // Reload လုပ်ရင် Timeout တိုးထားမယ်
+        await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
 
-        // wait table (Max 10s) - ပိုစိတ်ချရအောင် 10s တိုးထားပါတယ်
         try {
             await page.waitForSelector('table tbody tr', { timeout: 10000 });
         } catch(e) {
-            console.log("Timed out waiting for selector, trying to evaluate anyway...");
+            console.log("⚠️ Selector wait timeout, trying to extract anyway...");
         }
 
-        // Pull data
         const result = await page.evaluate(() => {
             let setVal = "0.00";
             let valText = "0.00";
