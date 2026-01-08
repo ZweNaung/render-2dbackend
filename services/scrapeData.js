@@ -20,7 +20,8 @@ const initBrowser = async () => {
                 '--no-zygote',
                 '--single-process',
                 '--disable-gpu'
-            ]
+            ],
+            executablePath: puppeteer.executablePath()
         });
         page = await browser.newPage();
         await page.setViewport({ width: 1366, height: 768 });
