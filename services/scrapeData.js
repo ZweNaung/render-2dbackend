@@ -6,15 +6,15 @@ puppeteer.use(StealthPlugin());
 let browser = null;
 let page = null;
 
-// Browser ဖွင့်ခြင်း (System Resource သုံးစွဲမှု လျှော့ချထားသည်)
 const initBrowser = async () => {
     try {
+        // console.log("🔄 Launching Browser...");
         browser = await puppeteer.launch({
             headless: "new",
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
+                '--disable-dev-shm-usage', // Docker/VPS အတွက် အရေးကြီး
                 '--disable-accelerated-2d-canvas',
                 '--no-first-run',
                 '--no-zygote',
@@ -22,44 +22,68 @@ const initBrowser = async () => {
                 '--disable-gpu'
             ]
         });
-        page = await browser.newPage();
-        await page.setViewport({ width: 1366, height: 768 });
 
-        // ပထမဆုံးအကြိမ် Website ကို Load လုပ်ထားခြင်း
-        await page.goto("https://www.set.or.th/en/home", { waitUntil: 'networkidle2', timeout: 60000 });
+        page = await browser.newPage();
+
+        // =====================================================
+        // ⭐ အရေးကြီးဆုံး: ပုံတွေ၊ Font တွေ၊ CSS တွေကို Block မယ်
+        // =====================================================
+        await page.setRequestInterception(true);
+        page.on('request', (req) => {
+            if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
+                req.abort(); // မလိုအပ်တာတွေ မဒေါင်းဘူး
+            } else {
+                req.continue();
+            }
+        });
+
+        await page.setViewport({ width: 1280, height: 720 });
+
+        // Timeout ကို 60s ပေးထားမယ် (Network နှေးရင် စောင့်နိုင်အောင်)
+        await page.goto("https://www.set.or.th/en/home", {
+            waitUntil: 'domcontentloaded',
+            timeout: 60000
+        });
+
         return true;
     } catch (err) {
         console.error("❌ Browser Init Error:", err.message);
+        if(browser) await browser.close();
         return false;
     }
 };
 
-// Browser ပိတ်ခြင်း (RAM ရှင်းရန်)
 const closeBrowser = async () => {
     if (browser) {
-        await browser.close();
+        try {
+            await browser.close();
+        } catch(e) {}
         browser = null;
         page = null;
-        console.log("🛑 Browser Closed (RAM Cleaned).");
+        console.log("🛑 Browser Closed.");
     }
 };
 
 const scrapeData = async () => {
-    // Browser မရှိလျှင် အသစ်ဖွင့်မည်
     if (!browser || !page) {
-        await initBrowser();
+        const success = await initBrowser();
+        if(!success) return null;
     }
 
     try {
-        // Page Reload (Browser အသစ်ဖွင့်တာထက် ပိုမြန်သည်)
-        await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
+        // Reload လုပ်မယ် (Timeout 30s)
+        try {
+            await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
+        } catch(e) {
+            // Timeout ဖြစ်လည်း ကိစ္စမရှိ၊ Data ရှိမရှိ ဆက်စစ်မယ်
+            console.log("⚠️ Reload timeout (checking data anyway)...");
+        }
 
-        // Table ပေါ်လာရန် စောင့်မည် (Max 5s)
+        // Table ပေါ်လာအောင် ခဏစောင့်မယ်
         try {
             await page.waitForSelector('table tbody tr', { timeout: 5000 });
         } catch(e) { }
 
-        // Data ဆွဲထုတ်ခြင်း Logic
         const result = await page.evaluate(() => {
             let setVal = "0.00";
             let valText = "0.00";
@@ -67,13 +91,12 @@ const scrapeData = async () => {
 
             for (let row of rows) {
                 const text = row.innerText;
-                // SET ဖြစ်ပြီး SET50, SET100 မဟုတ်တာကို ရှာမည်
                 if (text.includes('SET') && !text.includes('SET50') && !text.includes('SET100')) {
                     const cells = row.querySelectorAll('td');
                     if (cells.length > 1) {
-                        setVal = cells[1].innerText.trim(); // Index Value
+                        setVal = cells[1].innerText.trim();
                         if (cells.length > 0) {
-                            valText = cells[cells.length - 1].innerText.trim(); // Total Value (Last Column)
+                            valText = cells[cells.length - 1].innerText.trim();
                         }
                     }
                     break;
@@ -82,9 +105,15 @@ const scrapeData = async () => {
             return { setVal, valText };
         });
 
-        // 2D တွက်ချက်ခြင်း
-        const safeValText = result && result.valText ? result.valText : "0.00";
-        const safeSetVal = result && result.setVal ? result.setVal : "0.00";
+        // Data မရှိရင် (0.00) Browser ပိတ်ပြီး ပြန်စမယ်
+        if (!result || result.setVal === "0.00") {
+            // console.log("⚠️ Empty Data, restarting browser...");
+            await closeBrowser();
+            return null;
+        }
+
+        const safeValText = result.valText || "0.00";
+        const safeSetVal = result.setVal || "0.00";
 
         const valueArr = String(safeValText).split('\n');
         const getValue = valueArr.length > 0 ? valueArr[valueArr.length - 1].trim() : "0.00";
@@ -108,7 +137,6 @@ const scrapeData = async () => {
 
     } catch (err) {
         console.error("⚠️ Scrape Error:", err.message);
-        // Error တက်လျှင် Browser ပိတ်လိုက်မည် (Next run တွင် Fresh Start ရရန်)
         await closeBrowser();
         return null;
     }
