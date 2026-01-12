@@ -1,62 +1,145 @@
-const cron = require('node-cron');
-const { scrapeData, closeBrowser } = require('../services/scrapeData');
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 
-let isScraping = false;
+puppeteer.use(StealthPlugin());
 
-const startScheduler = (onDataUpdate) => {
-    console.log("✅ Scheduler Started (Myanmar Time) + Test Mode ON...");
+let browser = null;
+let page = null;
 
-    const runScraperSafe = async (modeName) => {
-        if (isScraping) return;
+const initBrowser = async () => {
+    try {
+        // console.log("🔄 Launching Browser...");
+        browser = await puppeteer.launch({
+            headless: "new",
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage', // Docker/VPS အတွက် အရေးကြီး
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--single-process',
+                '--disable-gpu'
+            ]
+        });
 
-        isScraping = true;
-        try {
-            const data = await scrapeData();
-            if (data) {
-                console.log(`[${modeName}] 🕒 ${new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Yangon', hour12: false })} -> 2D: ${data.twoD} (Val: ${data.value})`);
+        page = await browser.newPage();
+
+        // =====================================================
+        // ⭐ အရေးကြီးဆုံး: ပုံတွေ၊ Font တွေ၊ CSS တွေကို Block မယ်
+        // =====================================================
+        await page.setRequestInterception(true);
+        page.on('request', (req) => {
+            if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
+                req.abort(); // မလိုအပ်တာတွေ မဒေါင်းဘူး
+            } else {
+                req.continue();
             }
-            if(onDataUpdate){
-                onDataUpdate(data)
-            }
-        } catch (error) {
-            console.error(`❌ Job Error:`, error.message);
-        } finally {
-            isScraping = false;
-        }
-    };
+        });
 
-    const cronOptions = {
-        scheduled: true,
-        timezone: "Asia/Yangon"
-    };
+        await page.setViewport({ width: 1280, height: 720 });
 
-    // ==========================================
-    // 🧪 TEST MODE (စမ်းသပ်ရန် - ၁၀ စက္ကန့်တစ်ခါ)
-    // ==========================================
-    cron.schedule('*/10 * * * * *', () => {
-        runScraperSafe("🚀 TEST MODE");
-    }, cronOptions);
+        // Timeout ကို 60s ပေးထားမယ် (Network နှေးရင် စောင့်နိုင်အောင်)
+        await page.goto("https://www.set.or.th/en/home", {
+            waitUntil: 'domcontentloaded',
+            timeout: 60000
+        });
 
-
-    // ==========================================
-    // ☀️ MORNING SESSION (11:50 - 12:01)
-    // ==========================================
-    cron.schedule('*/30 50-56 11 * * 1-5', () => runScraperSafe("Morning Slow"), cronOptions);
-    cron.schedule('*/5 57-59 11 * * 1-5', () => runScraperSafe("Morning Fast"), cronOptions);
-    cron.schedule('*/5 0-1 12 * * 1-5', () => runScraperSafe("Morning Fast"), cronOptions);
-
-    // 🛑 12:02 -> Close Browser
-    cron.schedule('0 2 12 * * 1-5', async () => await closeBrowser(), cronOptions);
-
-    // ==========================================
-    // 🌇 EVENING SESSION (15:50 - 16:31)
-    // ==========================================
-    cron.schedule('*/30 50-58 15 * * 1-5', () => runScraperSafe("Evening Slow"), cronOptions);
-    cron.schedule('*/5 59 15 * * 1-5', () => runScraperSafe("Evening Fast"), cronOptions);
-    cron.schedule('*/5 0-31 16 * * 1-5', () => runScraperSafe("Evening Fast"), cronOptions);
-
-    // 🛑 16:32 -> Close Browser
-    cron.schedule('0 32 16 * * 1-5', async () => await closeBrowser(), cronOptions);
+        return true;
+    } catch (err) {
+        console.error("❌ Browser Init Error:", err.message);
+        if(browser) await browser.close();
+        return false;
+    }
 };
 
-module.exports = startScheduler;
+const closeBrowser = async () => {
+    if (browser) {
+        try {
+            await browser.close();
+        } catch(e) {}
+        browser = null;
+        page = null;
+        console.log("🛑 Browser Closed.");
+    }
+};
+
+const scrapeData = async () => {
+    if (!browser || !page) {
+        const success = await initBrowser();
+        if(!success) return null;
+    }
+
+    try {
+        // Reload လုပ်မယ် (Timeout 30s)
+        try {
+            await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
+        } catch(e) {
+            // Timeout ဖြစ်လည်း ကိစ္စမရှိ၊ Data ရှိမရှိ ဆက်စစ်မယ်
+            console.log("⚠️ Reload timeout (checking data anyway)...");
+        }
+
+        // Table ပေါ်လာအောင် ခဏစောင့်မယ်
+        try {
+            await page.waitForSelector('table tbody tr', { timeout: 5000 });
+        } catch(e) { }
+
+        const result = await page.evaluate(() => {
+            let setVal = "0.00";
+            let valText = "0.00";
+            const rows = document.querySelectorAll('table tbody tr');
+
+            for (let row of rows) {
+                const text = row.innerText;
+                if (text.includes('SET') && !text.includes('SET50') && !text.includes('SET100')) {
+                    const cells = row.querySelectorAll('td');
+                    if (cells.length > 1) {
+                        setVal = cells[1].innerText.trim();
+                        if (cells.length > 0) {
+                            valText = cells[cells.length - 1].innerText.trim();
+                        }
+                    }
+                    break;
+                }
+            }
+            return { setVal, valText };
+        });
+
+        // Data မရှိရင် (0.00) Browser ပိတ်ပြီး ပြန်စမယ်
+        if (!result || result.setVal === "0.00") {
+            // console.log("⚠️ Empty Data, restarting browser...");
+            await closeBrowser();
+            return null;
+        }
+
+        const safeValText = result.valText || "0.00";
+        const safeSetVal = result.setVal || "0.00";
+
+        const valueArr = String(safeValText).split('\n');
+        const getValue = valueArr.length > 0 ? valueArr[valueArr.length - 1].trim() : "0.00";
+
+        let lastSet = safeSetVal.slice(-1);
+        let lastValue = "0";
+
+        if (getValue.length >= 4) {
+            lastValue = getValue.slice(-4, -3);
+        } else if (getValue.length > 0) {
+            lastValue = getValue.slice(-1);
+        }
+
+        const towD = lastSet + lastValue;
+
+        return {
+            set: safeSetVal,
+            value: getValue,
+            twoD: towD
+        };
+
+    } catch (err) {
+        console.error("⚠️ Scrape Error:", err.message);
+        await closeBrowser();
+        return null;
+    }
+};
+
+module.exports = { scrapeData, closeBrowser };
