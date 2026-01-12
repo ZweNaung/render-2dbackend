@@ -76,7 +76,7 @@ router.delete('/myanmarLot/:id',myanmarLotteryController.deleteMyanmarLot)
 router.post('/modern/',modernAndInternetController.createEntry)
 router.get('/modern/:title',modernAndInternetController.getEntriesByTitle)
 
-//Live Data temp store
+//Live Data
 let latestData = {
     set: "0.00",
     value: "0.00",
@@ -84,33 +84,12 @@ let latestData = {
     updatedAt: null
 };
 
-//Receive from Google Script
-router.post('/update-live', (req, res) => {
-    const { set, value, twoD } = req.body;
-
-    // Data အမှန်ပါလာမှ Update လုပ်မယ်
-    if (set && value && twoD) {
-        latestData = {
-            set: set,
-            value: value,
-            twoD: twoD,
-            updatedAt: new Date()
-        };
-        console.log(`✅ Update from Google: ${twoD} (Val: ${value})`);
-        return res.status(200).json({ success: true, message: "Data Updated" });
-    }
-
-    return res.status(400).json({ success: false, message: "Invalid Data" });
+startScheduler((newData) => {
+    latestData = {
+        ...newData,
+        updatedAt: new Date()
+    };
 });
-
-router.get('/live', (req, res) => {
-    res.status(200).json({
-        success: true,
-        data: latestData,
-        message: "Latest Real-time 2D Data"
-    });
-});
-
 
 router.get('/live', (req, res) => {
     res.status(200).json({
