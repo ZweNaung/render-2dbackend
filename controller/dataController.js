@@ -1,4 +1,4 @@
-const dailyResultModel = require('../model/dailyResultModel');
+const dailyResultForHistoryModel = require('../model/dailyResultForHistoryModel');
 
 // ==========================================
 // 1. INSERTION LOGIC (Android App Usage)
@@ -16,7 +16,7 @@ const dailyDataInsertController = async (req, res, fixedTime) => {
         }
 
         const child = [{ time: fixedTime, twoD, set, value }];
-        const dateCheck = await dailyResultModel.findOne({ date });
+        const dateCheck = await dailyResultForHistoryModel.findOne({ date });
 
         if (dateCheck) {
             if (dateCheck.child.length >= 4) {
@@ -26,24 +26,24 @@ const dailyDataInsertController = async (req, res, fixedTime) => {
             if(timeExists){
                 return res.status(400).json({ message: `Entry for ${fixedTime} already exists!` });
             }
-            await dailyResultModel.updateOne({ date }, { $push: { child: { $each: child } } });
+            await dailyResultForHistoryModel.updateOne({ date }, { $push: { child: { $each: child } } });
 
         } else {
 
-            const data = new dailyResultModel({ date, child });
+            const data = new dailyResultForHistoryModel({ date, child });
             await data.save();
 
-            const totalCount = await dailyResultModel.countDocuments();
+            const totalCount = await dailyResultForHistoryModel.countDocuments();
 
             if (totalCount > 90) {
                 const deleteCount = totalCount - 90;
 
-                const oldDocs = await dailyResultModel.find()
+                const oldDocs = await dailyResultForHistoryModel.find()
                     .sort({ _id: 1 })
                     .limit(deleteCount);
 
                 const idsToDelete = oldDocs.map(doc => doc._id);
-                await dailyResultModel.deleteMany({ _id: { $in: idsToDelete } });
+                await dailyResultForHistoryModel.deleteMany({ _id: { $in: idsToDelete } });
 
                 console.log(`Auto-Deleted ${deleteCount} old records to maintain 90 limit.`);
             }
@@ -67,7 +67,7 @@ const handleGetDailyData = async (req, res) => {
         if (!date) {
             return res.status(400).json({ success: false, message: "Invalid date" });
         }
-        const dailyResult = await dailyResultModel.findOne({ date });
+        const dailyResult = await dailyResultForHistoryModel.findOne({ date });
         if (!dailyResult) {
             return res.status(404).json({ success: false, message: "No data found" }); // Changed 400 to 404 for 'Not Found'
         }
@@ -81,7 +81,7 @@ const handleGetDailyData = async (req, res) => {
 // Get all history
 const getAllHistory = async (req, res) => {
     try {
-        const allHistory = await dailyResultModel.find();
+        const allHistory = await dailyResultForHistoryModel.find();
         res.status(200).json(allHistory);
     } catch (error) {
         res.status(500).json({ message: `Error fetching data: ${error.message}` });
@@ -94,7 +94,7 @@ const updateChildResult = async (req, res) => {
         const { date, childId } = req.params;
         const updateData = req.body;
 
-        const dailyResult = await dailyResultModel.findOne({ date });
+        const dailyResult = await dailyResultForHistoryModel.findOne({ date });
 
         if (!dailyResult) {
             return res.status(404).json({ message: 'DailyResult not found' });

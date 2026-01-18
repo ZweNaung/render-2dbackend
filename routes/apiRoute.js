@@ -12,15 +12,15 @@ const startScheduler = require("../jobs/scheduler");
 const multer = require('multer');
 const insertDataController = require("../controller/dataController");
 const modernAndInternetController = require("../controller/modernController");
-
+const updateResultController = require("../controller/updateResultController");
 const storage = multer.memoryStorage()
 const upload = multer({storage: storage });
 
 
 
 
-//----Daily-----
-//api/insert
+//----update Result-----
+router.post('/live-result', updateResultController.updateResult);
 
 // router.post('/insert/9am', apiController.nineInsertAPI);
 router.post('/insert/11am', dataController.elevenInsertAPI);

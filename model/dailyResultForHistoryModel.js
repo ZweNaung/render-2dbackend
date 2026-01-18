@@ -17,7 +17,8 @@ const DailyResultChildSchema = new mongoose.Schema({
     value: {
         type: String,
         required: true,
-    }
+    },
+
 })
 
 const DateSchema = new mongoose.Schema({

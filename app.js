@@ -5,11 +5,19 @@ const bodyParser = require('body-parser');
 const path = require("path")
 const cron = require('node-cron');
 const modernModel=require('./model/modernAndInternet');
-
 const app = express();
 
 const apiRoute =  require('./routes/apiRoute');
+const http = require("node:http");
+const {Server} = require("socket.io");
+const server = http.createServer(app);
+const io = new Server(server);
+const updateResultModel = require('./model/dailyResultForHistoryModel')
 
+app.use((req, res, next) => {
+        req.io = io;
+        next();
+})
 
 app.set("view engine","ejs");
 app.set('views','views')
@@ -28,6 +36,9 @@ cron.schedule('0 0 * * *', async () => {
                         modern: "-",
                         internet: "-"
                 });
+
+                await updateResultModel.deleteMany({});
+
         } catch (err) {
         }
 }, {
