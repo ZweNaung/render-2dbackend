@@ -6,6 +6,9 @@ const createEntry=async(req,res)=>{
     try{
         const {title,modern,internet}=req.body;
 
+        if (!title || !modern || !internet) {
+            return res.status(400).json({ success: false, message: "Incomplete Data" });
+        }
 
         const updatedEntry = await modernModel.findOneAndUpdate(
             {title:title},
@@ -15,6 +18,8 @@ const createEntry=async(req,res)=>{
         },
             {new:true,upsert:true}
         );
+
+        req.io.emit("modern_update", updatedEntry);
 
         res.status(200).json({
             success:true,
