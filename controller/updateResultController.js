@@ -37,10 +37,6 @@ exports.updateResult = async (req, res) => {
             });
         }
 
-        // 2. FindOneAndUpdate (Overwrite Logic)
-        // filter: { session: session } -> တူညီတဲ့ session ရှိမရှိ ရှာမယ်
-        // update: { ... } -> ပြောင်းလဲမယ့် data တွေ
-        // options: { upsert: true, new: true } -> မရှိရင်အသစ်ထည့်၊ ရှိရင် update လုပ်၊ ပြီးရင် data အသစ်ပြန်ပေး
 
         const savedResult = await updateResultModel.findOneAndUpdate(
             { session: session },
