@@ -21,6 +21,7 @@ const upload = multer({storage: storage });
 
 //----update Result-----
 router.post('/live-result', updateResultController.updateResult);
+router.get('/live-result', updateResultController.getTodayResults);
 
 // router.post('/insert/9am', apiController.nineInsertAPI);
 router.post('/insert/11am', dataController.elevenInsertAPI);

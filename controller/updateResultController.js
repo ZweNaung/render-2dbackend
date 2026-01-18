@@ -1,48 +1,73 @@
 
 const updateResultModel =require("../model/updateResultModel");
 
+exports.getTodayResults = async (req, res) => {
+    try {
+
+        const results = await updateResult.find().sort({ _id: 1 });
+
+        res.status(200).json({
+            success: true,
+            message: "Successfully fetch Results",
+            data: results
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            success: false,
+            message: "Server Error while fetching data"
+        });
+    }
+};
+
 exports.updateResult = async (req, res) => {
+    try {
+        const { twoD, set, value, session } = req.body;
 
-    try{
-        const {twoD, set,value} = req.body;
-
+        // 1. Validation
         if (!twoD || !set || !value || !session) {
-            return res.status(400).json({ message: "Data incomplete" });
+            return res.status(400).json({ message: "Data incomplete." });
         }
 
         const validSessions = ["12:01 PM", "4:30 PM"];
-
-        if(!validSessions.includes(session)){
+        if (!validSessions.includes(session)) {
             return res.status(400).json({
-                success: false,
                 message: "Invalid session! Only '12:01 PM' or '4:30 PM' allowed."
             });
         }
 
-        const newResult = new updateResultModel({
-            twoD: twoD,
-            set: set,
-            value: value,
-            session: session
-        });
+        // 2. FindOneAndUpdate (Overwrite Logic)
+        // filter: { session: session } -> တူညီတဲ့ session ရှိမရှိ ရှာမယ်
+        // update: { ... } -> ပြောင်းလဲမယ့် data တွေ
+        // options: { upsert: true, new: true } -> မရှိရင်အသစ်ထည့်၊ ရှိရင် update လုပ်၊ ပြီးရင် data အသစ်ပြန်ပေး
 
-        await newResult.save();
+        const savedResult = await updateResultModel.findOneAndUpdate(
+            { session: session },
+            {
+                twoD: twoD,
+                set: set,
+                value: value,
+                session: session
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
 
+        // 3. Socket နဲ့ App ကိုလှမ်းပစ်မယ် (Update ဖြစ်သွားရင်လည်း UI မှာ ချက်ခြင်းပြောင်းသွားအောင်)
         req.io.emit("new_2d_result", {
-            twoD: twoD,
-            set: set,
-            value: value,
-            session: session
+            twoD: savedResult.twoD,
+            set: savedResult.set,
+            value: savedResult.value,
+            session: savedResult.session
         });
 
-
-        res.status(201).json({
+        res.status(200).json({
             success: true,
-            message: `Result for ${session} added successfully`,
-            data: newResult
+            message: `Result for ${session} saved/updated successfully`,
+            data: savedResult
         });
 
-    }catch (error) {
+    } catch (error) {
         console.error(error);
         res.status(500).json({
             success: false,
