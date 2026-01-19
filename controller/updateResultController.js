@@ -4,7 +4,7 @@ const updateResultModel =require("../model/updateResultModel");
 exports.getTodayResults = async (req, res) => {
     try {
 
-        const results = await updateResult.find().sort({ _id: 1 });
+        const results = await updateResultModel.find().sort({ _id: 1 });
 
         res.status(200).json({
             success: true,
