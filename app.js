@@ -49,7 +49,7 @@ app.use("/api", apiRoute);
 
 // ⭐ ပြင်ဆင်ချက် (၃): API ကနေ Live data လှမ်းခေါ်ရင် ရအောင် ဒီမှာပဲ Route လုပ်လိုက်တာ ပိုလွယ်တယ်
 // (apiRoute.js ထဲကနေ data အသစ်ကို လှမ်းယူဖို့ ခက်လို့ပါ)
-app.get('live', (req, res) => {
+app.get('/api/live', (req, res) => {
         res.status(200).json({
                 success: true,
                 data: globalLatestData,
