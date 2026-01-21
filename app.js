@@ -102,7 +102,7 @@ startScheduler((newData) => {
 //         timezone: "Asia/Yangon"
 // });
 
-cron.schedule('17 10 * * *', async () => {
+cron.schedule('15 17 * * *', async () => {
         try {
                 await modernModel.updateMany({}, {
                         modern: "-",
