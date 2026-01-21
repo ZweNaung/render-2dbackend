@@ -77,7 +77,23 @@ cron.schedule('0 0 * * *', async () => {
                         modern: "-",
                         internet: "-"
                 });
+
+                //update result
                 await updateResultModel.deleteMany({});
+                io.emit("daily_clear_event", {
+                        message: "New day started, data cleared",
+                        timestamp: new Date()
+                });
+
+                //live data
+                globalLatestData = {
+                        set: "0.00",
+                        value: "0.00",
+                        twoD: "--",
+                        updatedAt: new Date()
+                };
+                io.emit("live_2d_data", globalLatestData);
+
         } catch (err) {
                 console.error("Cron Job Error:", err);
         }
