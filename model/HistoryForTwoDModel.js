@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const DailyResultChildSchema = new mongoose.Schema({
+const historySchema = new mongoose.Schema({
 
     time: {
         type: String,
@@ -21,14 +21,14 @@ const DailyResultChildSchema = new mongoose.Schema({
 
 })
 
-const DateSchema = new mongoose.Schema({
+const HistoryTwoDDateSchema = new mongoose.Schema({
     date:{
         type: String,
         required: true,
         unique: true,
     },
-    child:[DailyResultChildSchema],
+    child:[historySchema],
 })
 
 
-module.exports = mongoose.model('DailyResult', DateSchema,'daily_results');
+module.exports = mongoose.model('HistoryTwoD', HistoryTwoDDateSchema,'HistoryForTwoD');

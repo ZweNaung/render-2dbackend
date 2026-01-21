@@ -1,4 +1,4 @@
-const nineModel = require("../model/dailyResultForHistoryModel")
+const nineModel = require("../model/HistoryForTwoDModel")
 
 exports.viewDateByDate = async (req,res) => {
     try{

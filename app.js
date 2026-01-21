@@ -10,7 +10,7 @@ const cron = require('node-cron'); // Cron ကို အပေါ်နားပ
 const startScheduler = require("./jobs/scheduler");
 const modernModel = require('./model/modernAndInternet');
 const apiRoute = require('./routes/apiRoute');
-const updateResultModel = require('./model/dailyResultForHistoryModel');
+const updateResultModel = require('./model/updateResultModel');
 
 const app = express();
 const server = http.createServer(app);
