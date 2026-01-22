@@ -101,7 +101,7 @@ const startScheduler = (onDataUpdate) => {
     // 👉 TEST MODE ON ချင်ရင် "//" ဖယ်ပါ
     // 👉 TEST MODE OFF ချင်ရင် "//" ထားပါ
 
-    // startIntervalScraping(15000, 'TEST MODE', onDataUpdate);
+    startIntervalScraping(15000, 'TEST MODE', onDataUpdate);
 };
 
 module.exports = startScheduler;
