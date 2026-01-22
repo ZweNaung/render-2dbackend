@@ -132,7 +132,8 @@ const scrapeData = async () => {
         const value = valueArr[valueArr.length - 1].trim();
 
         const lastSet = result.setVal.slice(-1);
-        const lastValue = value.length >= 2 ? value.slice(-2, -1) : "0"; // ဒသမ မတိုင်ခင် ဂဏန်းကို ယူရန်
+        const lastValue = value.split('.')[0].slice(-1);
+        // const lastValue = value.length >= 2 ? value.slice(-2, -1) : "0"; // ဒသမ မတိုင်ခင် ဂဏန်းကို ယူရန်
 
         // 2D တွက်နည်း (Set နောက်ဆုံးဂဏန်း + Value ဒသမရှေ့ဂဏန်း)
         // ဥပမာ: Set 1450.34, Value 12345.67 => 4 + 6 = 46 (ဒါက Logic မှန်ဖို့လိုတယ်နော်)
