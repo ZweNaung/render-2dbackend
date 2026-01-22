@@ -15,7 +15,9 @@ const updateResultModel = require('./model/updateResultModel');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-        cors: { origin: "*" }
+        cors: { origin: "*" },
+        pingInterval: 10000,
+        pingTimeout:5000
 });
 app.set('socketio', io);
 
