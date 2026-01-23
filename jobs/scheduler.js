@@ -1,8 +1,11 @@
 const cron = require('node-cron');
 const { scrapeData, closeBrowser } = require('../services/scrapeData');
+// 👇 (New) Auto Save လုပ်ဖို့ resultGuard ကို import လုပ်ပါ
+const { checkAndSaveResult } = require('../services/resultGuard');
 
 let isScraping = false;
 let intervalId = null;
+let latestDataCache = null; // 👇 (New) နောက်ဆုံးရတဲ့ Data ကို ခဏမှတ်ထားမယ် (Save ဖို့လိုရင်သုံးမယ်)
 
 /**
  * Interval-based scraper (safe for puppeteer)
@@ -19,6 +22,9 @@ const startIntervalScraping = (intervalMs, modeName, onDataUpdate) => {
         try {
             const data = await scrapeData();
             if (data) {
+                // 👇 (New) Cache ထဲထည့်မယ်
+                latestDataCache = data;
+
                 console.log(
                     `[${modeName}] ${new Date().toLocaleTimeString(
                         'en-US',
@@ -52,8 +58,9 @@ const stopIntervalScraping = async () => {
 
 /**
  * Scheduler entry
+ * ❗ (Modified) io parameter ကို လက်ခံထားတယ်
  */
-const startScheduler = (onDataUpdate) => {
+const startScheduler = (onDataUpdate, io) => {
     console.log('✅ Scheduler Started (Asia/Yangon)');
 
     const cronOptions = {
@@ -61,47 +68,64 @@ const startScheduler = (onDataUpdate) => {
         timezone: 'Asia/Yangon'
     };
 
-    // =============================
-    // ☀️ MORNING SESSION
-    // =============================
-
-    cron.schedule('50 11 * * 1-5', () => {
+    // ==========================================
+    // ☀️ MORNING SCRAPING SESSION
+    // ==========================================
+    cron.schedule('50 09 * * 1-5', () => {
         startIntervalScraping(30000, 'Morning Slow', onDataUpdate);
     }, cronOptions);
 
-    cron.schedule('57 11 * * 1-5', () => {
+    cron.schedule('50 11 * * 1-5', () => {
         stopIntervalScraping();
         startIntervalScraping(15000, 'Morning Fast', onDataUpdate);
     }, cronOptions);
 
-    cron.schedule('2 12 * * 1-5', async () => {
+    cron.schedule('10 12 * * 1-5', async () => {
         await stopIntervalScraping();
     }, cronOptions);
 
-    // =============================
-    // 🌇 EVENING SESSION
-    // =============================
-
-    cron.schedule('50 15 * * 1-5', () => {
+    // ==========================================
+    // 🌇 EVENING SCRAPING SESSION
+    // ==========================================
+    cron.schedule('50 13 * * 1-5', () => {
         startIntervalScraping(30000, 'Evening Slow', onDataUpdate);
     }, cronOptions);
 
-    cron.schedule('59 15 * * 1-5', () => {
+    cron.schedule('50 15 * * 1-5', () => {
         stopIntervalScraping();
         startIntervalScraping(15000, 'Evening Fast', onDataUpdate);
     }, cronOptions);
 
-    cron.schedule('32 16 * * 1-5', async () => {
+    cron.schedule('40 16 * * 1-5', async () => {
         await stopIntervalScraping();
+    }, cronOptions);
+
+
+    // ==========================================
+    // ⭐ AUTO SAVE CHECKER (CRON JOBS)
+    // ==========================================
+
+    // ၁။ မနက်ပိုင်း ၁၂:၀၀ မှ ၁၂:၀၅ အတွင်း (Intermission စစ်ရန်)
+    cron.schedule('0-5 12 * * 1-5', async () => {
+        console.log("⏰ 12:00 PM Check Triggered");
+        if(latestDataCache) {
+            // Live Data အဟောင်းရှိနေရင် Status စစ်ပြီး Save မယ်
+            await checkAndSaveResult(latestDataCache, io);
+        }
+    }, cronOptions);
+
+    // ၂။ ညနေပိုင်း ၄:၃၀ မှ ၄:၃၅ အတွင်း (Closed စစ်ရန်)
+    cron.schedule('30-35 16 * * 1-5', async () => {
+        console.log("⏰ 4:30 PM Check Triggered");
+        if(latestDataCache) {
+            await checkAndSaveResult(latestDataCache, io);
+        }
     }, cronOptions);
 
     // =============================
     // 🧪 TEST MODE (MANUAL TOGGLE)
     // =============================
-    // 👉 TEST MODE ON ချင်ရင် "//" ဖယ်ပါ
-    // 👉 TEST MODE OFF ချင်ရင် "//" ထားပါ
-
-    // startIntervalScraping(15000, 'TEST MODE', onDataUpdate);
+    startIntervalScraping(15000, 'TEST MODE', onDataUpdate);
 };
 
 module.exports = startScheduler;

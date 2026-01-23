@@ -14,10 +14,12 @@ const updateResultModel = require('./model/updateResultModel');
 
 const app = express();
 const server = http.createServer(app);
+
+// Socket Setup (Connection Timeouts are optimized)
 const io = new Server(server, {
         cors: { origin: "*" },
-        pingInterval: 10000,
-        pingTimeout:5000
+        pingInterval: 10000, // 10s Ping
+        pingTimeout: 5000    // 5s Timeout
 });
 app.set('socketio', io);
 
@@ -73,6 +75,7 @@ app.get('/api/live', (req, res) => {
 // ===============================
 let lastTwoD = null;
 
+// ❗ (Modified) ဒီနေရာမှာ io ကို parameter အနေနဲ့ ထည့်ပေးလိုက်ပါပြီ
 startScheduler((newData) => {
         if (!newData) return;
 
@@ -88,7 +91,8 @@ startScheduler((newData) => {
 
         io.emit("live_2d_data", globalLatestData);
         console.log("📡 Real-time data emitted:", globalLatestData.twoD);
-});
+
+}, io); // 👈 io ကို ဒီမှာ pass လုပ်ထားတယ်
 
 // ===============================
 // ⭐ (5) Daily Reset Cron (OK)
@@ -137,7 +141,6 @@ mongoose.connect(process.env.MONGODB_URL)
     .catch((err) => {
             console.log("MongoDB connection error:", err);
     });
-
 
 
 
