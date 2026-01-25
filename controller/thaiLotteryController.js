@@ -57,10 +57,7 @@ const uploadThaiLottery =async (req,res)=>{
             success: true,
             status: "success",
             message:"Upload Success",
-            data:{
-                _id: saveData._id,
-                name: saveData.name,
-            }
+            data:saveData
         });
 
     }catch(err){
