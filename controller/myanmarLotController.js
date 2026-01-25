@@ -94,10 +94,7 @@ const deleteMyanmarLot = async (req,res,next)=>{
         res.status(200).json({
             success: true,
             message:"Deleted Successfully",
-            data:{
-                _id: deleteToMyanmarLot.id,
-                name: deleteToMyanmarLot.name,
-            }
+            data:deleteToMyanmarLot
         })
     }catch (e) {
         res.status(500).json({ error: "An error occurred while deleting data." });
