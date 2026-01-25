@@ -125,7 +125,7 @@ const startScheduler = (onDataUpdate, io) => {
     // =============================
     // 🧪 TEST MODE (MANUAL TOGGLE)
     // =============================
-    startIntervalScraping(15000, 'TEST MODE', onDataUpdate);
+    // startIntervalScraping(15000, 'TEST MODE', onDataUpdate);
 };
 
 module.exports = startScheduler;
