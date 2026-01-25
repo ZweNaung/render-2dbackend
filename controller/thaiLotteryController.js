@@ -54,6 +54,7 @@ const uploadThaiLottery =async (req,res)=>{
         const saveData = await newThiaLotteryData.save();
 
         res.status(200).json({
+            success: true,
             status: "success",
             message:"Upload Success",
             data:{

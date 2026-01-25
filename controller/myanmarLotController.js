@@ -55,6 +55,7 @@ const uploadMyanmarLot =async (req,res)=>{
         const saveData = await newMyanmarLotData.save();
 
         res.status(200).json({
+            success: true,
             status: "success",
             message:"Upload Success",
             data:{
