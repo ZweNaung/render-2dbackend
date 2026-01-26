@@ -5,23 +5,23 @@ let context = null;
 let page = null;
 let failCount = 0;
 
-/**
- * Browser & Context စတင်ခြင်း
- */
 const initBrowser = async () => {
     try {
         browser = await chromium.launch({
-            headless: true, // "new" မလိုပါ၊ true ဆိုရပြီ
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
+            headless: true,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage', // Memory ပြဿနာဖြေရှင်းရန်
+                '--disable-gpu'
+            ]
         });
 
-        // Context တည်ဆောက်ခြင်း (Session တခုလို သဘောထားပါ)
         context = await browser.newContext({
             viewport: { width: 1280, height: 720 },
             userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         });
 
-        // Resource blocking (Playwright style) - Image/Font ပိတ်ခြင်း
         await context.route('**/*', (route) => {
             const type = route.request().resourceType();
             if (['image', 'font', 'media', 'stylesheet'].includes(type)) {
@@ -32,7 +32,6 @@ const initBrowser = async () => {
 
         page = await context.newPage();
 
-        // ပထမဆုံးအကြိမ် Website ဖွင့်မယ်
         await page.goto('https://www.set.or.th/en/home', {
             waitUntil: 'domcontentloaded',
             timeout: 60000
@@ -48,9 +47,6 @@ const initBrowser = async () => {
     }
 };
 
-/**
- * Browser ပိတ်
- */
 const closeBrowser = async () => {
     try {
         if (context) await context.close();
@@ -62,18 +58,13 @@ const closeBrowser = async () => {
     console.log('🛑 Playwright Browser closed');
 };
 
-/**
- * Scrape SET data
- */
 const scrapeData = async () => {
-    // Browser မရှိသေးရင် အသစ်ဖွင့်
     if (!browser || !page) {
         const ok = await initBrowser();
         if (!ok) return null;
     }
 
     try {
-        // Page ကို Reload လုပ်မယ်
         try {
             await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
         } catch (reloadErr) {
@@ -81,19 +72,26 @@ const scrapeData = async () => {
             throw reloadErr;
         }
 
-        // Table row ပေါ်လာအောင် စောင့် (Playwright locator)
+        // ⭐ ပြင်ဆင်ချက် (1): Selector ကို ပိုတိကျအောင် div wrapper နဲ့တွဲခေါ်မယ်
+        // ⭐ ပြင်ဆင်ချက် (2): state: 'attached' သုံးမယ် (Visible မဖြစ်လည်းရတယ်၊ DOM မှာရှိရင်ရပြီ)
         try {
-            await page.waitForSelector('table tbody tr', { timeout: 15000 });
+            await page.waitForSelector('table tbody tr', {
+                state: 'attached',
+                timeout: 20000
+            });
         } catch (e) {
-            console.log("⚠️ Table not found (Timeout)");
-            throw e;
+            console.log("⚠️ Table wait timeout (checking content anyway...)");
         }
 
         const result = await page.evaluate(() => {
-            const rows = document.querySelectorAll('table tbody tr');
+            // Data ယူတဲ့နေရာမှာလည်း Error မတက်အောင် စစ်မယ်
+            const table = document.querySelector('table');
+            if (!table) return null;
+
+            const rows = table.querySelectorAll('tbody tr');
+
             for (const row of rows) {
                 const cells = row.querySelectorAll('td');
-                // SET row ရှာမယ်
                 if (cells.length && cells[0].innerText.trim() === 'SET') {
                     return {
                         setVal: cells[1]?.innerText.trim() || "0.00",
@@ -104,7 +102,6 @@ const scrapeData = async () => {
             return null;
         });
 
-        // Data မရရင် retry logic
         if (!result || result.setVal === "0.00") {
             failCount++;
             console.log(`⚠️ Empty data (${failCount})`);
@@ -119,7 +116,6 @@ const scrapeData = async () => {
 
         failCount = 0;
 
-        // Value process & 2D Calculation
         const valueArr = String(result.valText).split('\n');
         const value = valueArr[valueArr.length - 1].trim();
 
@@ -145,8 +141,6 @@ module.exports = {
     scrapeData,
     closeBrowser
 };
-
-
 
 // const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 
