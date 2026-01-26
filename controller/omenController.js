@@ -23,8 +23,11 @@ const omenUploadData = async (req, res)=>{
             return res.status(400).json({error:"Missing required fields: name and image are required"});
         }
 
-
-        const fileName = `omen/${Date.now()}-${req.file.originalname}`;
+        // const fileName = `omen/${Date.now()}-${req.file.originalname}`;
+        // ဖိုင် extension (.jpg, .png) ကိုပဲ ယူမယ်
+        const ext = path.extname(req.file.originalname);
+        // နာမည်ကို Date အတိအကျနဲ့ပဲ ပေးမယ် (User ပေးတဲ့နာမည် မယူတော့ဘူး)
+        const fileName = `thai_lottery/${Date.now()}${ext}`;
         const command = new PutObjectCommand({
             Bucket: process.env.R2_BUCKET_NAME,
             Key: fileName,

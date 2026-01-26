@@ -1,4 +1,5 @@
 require("dotenv").config();
+const path = require('path');
 const thaiLotteryModel = require("../model/thaiLotteryModel");
 const {PutObjectCommand,S3Client,DeleteObjectCommand} = require("@aws-sdk/client-s3");
 
@@ -35,7 +36,12 @@ const uploadThaiLottery =async (req,res)=>{
             return res.status(400).json({ error: "Missing required fields: name, or image" });
         }
 
-        const fileName=`thai_lottery/${Date.now()}-${req.file.originalname}`;
+        // const fileName=`thai_lottery/${Date.now()}-${req.file.originalname}`;
+        // ဖိုင် extension (.jpg, .png) ကိုပဲ ယူမယ်
+        const ext = path.extname(req.file.originalname);
+        // နာမည်ကို Date အတိအကျနဲ့ပဲ ပေးမယ် (User ပေးတဲ့နာမည် မယူတော့ဘူး)
+        const fileName = `thai_lottery/${Date.now()}${ext}`;
+
         const command = new PutObjectCommand({
             Bucket: process.env.R2_BUCKET_NAME,
             Key: fileName,
