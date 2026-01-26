@@ -12,19 +12,22 @@ const initBrowser = async () => {
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage', // Memory ပြဿနာဖြေရှင်းရန်
-                '--disable-gpu'
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--disable-blink-features=AutomationControlled' // Bot detect မမိအောင်
             ]
         });
 
         context = await browser.newContext({
-            viewport: { width: 1280, height: 720 },
+            // ⭐ Desktop View ဖြစ်အောင် Screen ကြီးကြီးထားမယ်
+            viewport: { width: 1920, height: 1080 },
             userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         });
 
+        // Resource blocking (Image/Font ပိတ်)
         await context.route('**/*', (route) => {
             const type = route.request().resourceType();
-            if (['image', 'font', 'media', 'stylesheet'].includes(type)) {
+            if (['image', 'font', 'media', 'stylesheet', 'other'].includes(type)) {
                 return route.abort();
             }
             return route.continue();
@@ -65,44 +68,46 @@ const scrapeData = async () => {
     }
 
     try {
+        // Page Reload
         try {
             await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
         } catch (reloadErr) {
-            console.log("⚠️ Reload timeout, restarting browser...");
+            console.log("⚠️ Reload timeout, restarting...");
             throw reloadErr;
         }
 
-        // ⭐ ပြင်ဆင်ချက် (1): Selector ကို ပိုတိကျအောင် div wrapper နဲ့တွဲခေါ်မယ်
-        // ⭐ ပြင်ဆင်ချက် (2): state: 'attached' သုံးမယ် (Visible မဖြစ်လည်းရတယ်၊ DOM မှာရှိရင်ရပြီ)
+        // ⭐ အဓိက ပြင်ဆင်ချက်: "SET" ဆိုတဲ့ စာလုံးပါတဲ့ Table Cell ပေါ်လာတဲ့အထိ စောင့်မယ်
+        // ဒါမှ Data အစစ်ရမယ်
         try {
-            await page.waitForSelector('table tbody tr', {
-                state: 'attached',
-                timeout: 20000
-            });
+            await page.waitForSelector('td:has-text("SET")', { state: 'attached', timeout: 20000 });
         } catch (e) {
-            console.log("⚠️ Table wait timeout (checking content anyway...)");
+            console.log("⚠️ 'SET' text not found yet (might be loading...)");
         }
 
         const result = await page.evaluate(() => {
-            // Data ယူတဲ့နေရာမှာလည်း Error မတက်အောင် စစ်မယ်
-            const table = document.querySelector('table');
-            if (!table) return null;
-
-            const rows = table.querySelectorAll('tbody tr');
+            // Table Row တွေကို ရှာမယ်
+            const rows = document.querySelectorAll('tr'); // Selector ကို ပိုကျယ်ကျယ်ရှာမယ်
 
             for (const row of rows) {
                 const cells = row.querySelectorAll('td');
-                if (cells.length && cells[0].innerText.trim() === 'SET') {
-                    return {
-                        setVal: cells[1]?.innerText.trim() || "0.00",
-                        valText: cells[cells.length - 1]?.innerText.trim() || "0.00"
-                    };
+                if (cells.length > 1) {
+                    const firstCellText = cells[0].innerText.trim();
+
+                    // ⭐ "SET" အတိအကျမဟုတ်ဘဲ ပါဝင်ရင် ယူမယ် (Space တွေကြောင့် လွဲတတ်လို့)
+                    if (firstCellText.includes('SET') && !firstCellText.includes('50') && !firstCellText.includes('100')) {
+                        return {
+                            setVal: cells[1]?.innerText.trim() || "0.00",
+                            // နောက်ဆုံး cell က value ဖြစ်လေ့ရှိတယ်
+                            valText: cells[cells.length - 1]?.innerText.trim() || "0.00"
+                        };
+                    }
                 }
             }
             return null;
         });
 
-        if (!result || result.setVal === "0.00") {
+        // Check if data is valid
+        if (!result || result.setVal === "0.00" || result.valText === "0.00") {
             failCount++;
             console.log(`⚠️ Empty data (${failCount})`);
 
@@ -116,11 +121,19 @@ const scrapeData = async () => {
 
         failCount = 0;
 
+        // Data processing
         const valueArr = String(result.valText).split('\n');
         const value = valueArr[valueArr.length - 1].trim();
 
-        const lastSet = result.setVal.slice(-1);
-        const lastValue = value.split('.')[0].slice(-1);
+        // 2D Calculation Logic
+        // Remove commas just in case (e.g. 1,450.00)
+        const cleanSet = result.setVal.replace(/,/g, '');
+        const cleanValue = value.replace(/,/g, '');
+
+        const lastSet = cleanSet.split('.')[0].slice(-1); // ဒသမရှေ့ ဂဏန်းရဲ့ နောက်ဆုံးလုံး
+        // Value က တစ်ခါတလေ ဒသမ မပါလာရင် ၀ တပ်ပေးရမယ် သို့မဟုတ် logic စစ်ရမယ်
+        const lastValue = cleanValue.includes('.') ? cleanValue.split('.')[0].slice(-1) : cleanValue.slice(-1);
+
         const twoD = lastSet + lastValue;
 
         return {
