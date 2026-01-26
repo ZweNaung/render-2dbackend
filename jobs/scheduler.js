@@ -131,7 +131,26 @@ const startScheduler = (onDataUpdate, io) => {
             }
         }
     }, cronOptions);
+
+    // ==========================================
+    // 🧪 TEST MODE (စမ်းသပ်ရန် နေရာ)
+    // ==========================================
+
+    // 👇 စမ်းချင်ရင် ဒီနေရာမှာ true ပြောင်းလိုက်ပါ
+    const runTest = true;
+
+    if (runTest) {
+        console.log("⚠️ TEST MODE ACTIVATED: Running immediate scrape...");
+
+        // ၁၀ စက္ကန့်တစ်ခါ ချက်ချင်းစဆွဲမယ်
+        startIntervalScraping(10000, 'TEST_RUN', onDataUpdate);
+
+        // (Optional) ၂ မိနစ်ကြာရင် သူ့အလိုလို ပြန်ရပ်ခိုင်းမယ် (Server မလေးအောင်)
+        setTimeout(async () => {
+            console.log("🧪 Test Mode: Auto-stopping after 2 minutes.");
+            await stopIntervalScraping();
+        }, 120000); // 120,000 ms = 2 minutes
+    }
 };
 
 module.exports = startScheduler;
-
