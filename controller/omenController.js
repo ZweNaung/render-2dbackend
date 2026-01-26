@@ -1,5 +1,6 @@
 require('dotenv').config();
 const omenModel = require("../model/omenModel");
+const path = require("path");
 // const {PutObjectCommand, S3Client,DeleteObjectCommand} = require("@aws-sdk/client-s3");
 const { PutObjectCommand, S3Client, DeleteObjectCommand, DeleteObjectsCommand } = require("@aws-sdk/client-s3");
 
