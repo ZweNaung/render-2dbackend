@@ -1,14 +1,13 @@
 const cron = require('node-cron');
 const { scrapeData, closeBrowser } = require('../services/scrapeData');
-// 👇 (New) Auto Save လုပ်ဖို့ resultGuard ကို import လုပ်ပါ
 const { checkAndSaveResult } = require('../services/resultGuard');
 
 let isScraping = false;
 let intervalId = null;
-let latestDataCache = null; // 👇 (New) နောက်ဆုံးရတဲ့ Data ကို ခဏမှတ်ထားမယ် (Save ဖို့လိုရင်သုံးမယ်)
+let latestDataCache = null;
 
 /**
- * Interval-based scraper (safe for puppeteer)
+ * Interval-based scraper
  */
 const startIntervalScraping = (intervalMs, modeName, onDataUpdate) => {
     if (intervalId) return;
@@ -22,7 +21,6 @@ const startIntervalScraping = (intervalMs, modeName, onDataUpdate) => {
         try {
             const data = await scrapeData();
             if (data) {
-                // 👇 (New) Cache ထဲထည့်မယ်
                 latestDataCache = data;
 
                 console.log(
@@ -51,14 +49,13 @@ const stopIntervalScraping = async () => {
     if (intervalId) {
         clearInterval(intervalId);
         intervalId = null;
-        console.log('⏹️ Interval stopped');
+        console.log('⏹️ Interval stopped by Scheduler');
     }
     await closeBrowser();
 };
 
 /**
  * Scheduler entry
- * ❗ (Modified) io parameter ကို လက်ခံထားတယ်
  */
 const startScheduler = (onDataUpdate, io) => {
     console.log('✅ Scheduler Started (Asia/Yangon)');
@@ -80,6 +77,7 @@ const startScheduler = (onDataUpdate, io) => {
         startIntervalScraping(15000, 'Morning Fast', onDataUpdate);
     }, cronOptions);
 
+    // Backup Stop (Save မဖြစ်ခဲ့ရင် ၁၂:၁၀ မှာ အတင်းရပ်မယ်)
     cron.schedule('10 12 * * 1-5', async () => {
         await stopIntervalScraping();
     }, cronOptions);
@@ -96,21 +94,27 @@ const startScheduler = (onDataUpdate, io) => {
         startIntervalScraping(15000, 'Evening Fast', onDataUpdate);
     }, cronOptions);
 
+    // Backup Stop (Save မဖြစ်ခဲ့ရင် ၄:၄၀ မှာ အတင်းရပ်မယ်)
     cron.schedule('40 16 * * 1-5', async () => {
         await stopIntervalScraping();
     }, cronOptions);
 
 
     // ==========================================
-    // ⭐ AUTO SAVE CHECKER (CRON JOBS)
+    // ⭐ AUTO SAVE CHECKER (Logic Updated)
     // ==========================================
 
     // ၁။ မနက်ပိုင်း ၁၂:၀၀ မှ ၁၂:၀၅ အတွင်း (Intermission စစ်ရန်)
     cron.schedule('0-5 12 * * 1-5', async () => {
         console.log("⏰ 12:00 PM Check Triggered");
         if(latestDataCache) {
-            // Live Data အဟောင်းရှိနေရင် Status စစ်ပြီး Save မယ်
-            await checkAndSaveResult(latestDataCache, io);
+            // ⭐ resultGuard က true ပြန်လာရင် ရပ်တော့မယ်
+            const isSaved = await checkAndSaveResult(latestDataCache, io);
+
+            if (isSaved) {
+                console.log("🛑 Morning Result Saved. Stopping Scraper Immediately.");
+                await stopIntervalScraping();
+            }
         }
     }, cronOptions);
 
@@ -118,78 +122,16 @@ const startScheduler = (onDataUpdate, io) => {
     cron.schedule('30-35 16 * * 1-5', async () => {
         console.log("⏰ 4:30 PM Check Triggered");
         if(latestDataCache) {
-            await checkAndSaveResult(latestDataCache, io);
+            // ⭐ resultGuard က true ပြန်လာရင် ရပ်တော့မယ်
+            const isSaved = await checkAndSaveResult(latestDataCache, io);
+
+            if (isSaved) {
+                console.log("🛑 Evening Result Saved. Stopping Scraper Immediately.");
+                await stopIntervalScraping();
+            }
         }
     }, cronOptions);
-
-    // =============================
-    // 🧪 TEST MODE (MANUAL TOGGLE)
-    // =============================
-    // startIntervalScraping(15000, 'TEST MODE', onDataUpdate);
 };
 
 module.exports = startScheduler;
 
-
-// const cron = require('node-cron');
-// const { scrapeData, closeBrowser } = require('../services/scrapeData');
-//
-// let isScraping = false;
-//
-// const startScheduler = (onDataUpdate) => {
-//     console.log("✅ Scheduler Started (Myanmar Time) + Test Mode ON...");
-//
-//     const runScraperSafe = async (modeName) => {
-//         if (isScraping) return;
-//
-//         isScraping = true;
-//         try {
-//             const data = await scrapeData();
-//             if (data) {
-//                 console.log(`[${modeName}] 🕒 ${new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Yangon', hour12: false })} -> 2D: ${data.twoD} (Val: ${data.value})`);
-//             }
-//             if(onDataUpdate){
-//                 onDataUpdate(data)
-//             }
-//         } catch (error) {
-//             console.error(`❌ Job Error:`, error.message);
-//         } finally {
-//             isScraping = false;
-//         }
-//     };
-//
-//     const cronOptions = {
-//         scheduled: true,
-//         timezone: "Asia/Yangon"
-//     };
-//
-//     // ==========================================
-//     // 🧪 TEST MODE (စမ်းသပ်ရန် - ၁၀ စက္ကန့်တစ်ခါ)
-//     // ==========================================
-//     cron.schedule('*/10 * * * * *', () => {
-//         runScraperSafe("🚀 TEST MODE");
-//     }, cronOptions);
-//
-//
-//     // ==========================================
-//     // ☀️ MORNING SESSION (11:50 - 12:01)
-//     // ==========================================
-//     cron.schedule('*/30 50-56 11 * * 1-5', () => runScraperSafe("Morning Slow"), cronOptions);
-//     cron.schedule('*/5 57-59 11 * * 1-5', () => runScraperSafe("Morning Fast"), cronOptions);
-//     cron.schedule('*/5 0-1 12 * * 1-5', () => runScraperSafe("Morning Fast"), cronOptions);
-//
-//     // 🛑 12:02 -> Close Browser
-//     cron.schedule('0 2 12 * * 1-5', async () => await closeBrowser(), cronOptions);
-//
-//     // ==========================================
-//     // 🌇 EVENING SESSION (15:50 - 16:31)
-//     // ==========================================
-//     cron.schedule('*/30 50-58 15 * * 1-5', () => runScraperSafe("Evening Slow"), cronOptions);
-//     cron.schedule('*/5 59 15 * * 1-5', () => runScraperSafe("Evening Fast"), cronOptions);
-//     cron.schedule('*/5 0-31 16 * * 1-5', () => runScraperSafe("Evening Fast"), cronOptions);
-//
-//     // 🛑 16:32 -> Close Browser
-//     cron.schedule('0 32 16 * * 1-5', async () => await closeBrowser(), cronOptions);
-// };
-//
-// module.exports = startScheduler;

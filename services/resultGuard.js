@@ -1,4 +1,3 @@
-// services/resultGuard.js
 const puppeteer = require('puppeteer-extra');
 const updateResultModel = require('../model/updateResultModel'); // Path မှန်အောင်ကြည့်ပါ
 
@@ -50,7 +49,7 @@ const statusCheck = async () => {
 const checkAndSaveResult = async (currentLiveData, io) => {
     if (!currentLiveData || currentLiveData.twoD === "--") {
         console.log("⚠️ No live data to save yet.");
-        return;
+        return false;
     }
 
     console.log("🔍 Checking Market Status for Auto-Save...");
@@ -69,9 +68,6 @@ const checkAndSaveResult = async (currentLiveData, io) => {
     // Save ရမည့် Status ဖြစ်မှ ဆက်လုပ်မယ်
     if (sessionToSave) {
         try {
-            // Database ထဲမှာ ရှိပြီးသားလား အရင်စစ်မယ် (ထပ်ခါထပ်ခါ မ Save အောင်)
-            // ဒါမှမဟုတ် အမြဲ Update လုပ်ချင်ရင် findOneAndUpdate သုံးမယ်
-
             const savedResult = await updateResultModel.findOneAndUpdate(
                 { session: sessionToSave },
                 {
@@ -95,11 +91,16 @@ const checkAndSaveResult = async (currentLiveData, io) => {
                 });
             }
 
+            // ⭐ IMPORTANT: Save လုပ်ပြီးကြောင်း အချက်ပြရန် true ပြန်ပေးမယ်
+            return true;
+
         } catch (err) {
             console.error("❌ DB Save Error:", err);
+            return false;
         }
     } else {
         console.log("ℹ️ Market is Open/Unknown. No save needed.");
+        return false;
     }
 };
 
