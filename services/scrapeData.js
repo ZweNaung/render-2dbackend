@@ -130,7 +130,7 @@ const scrapeData = async () => {
         const cleanSet = result.setVal.replace(/,/g, '');
         const cleanValue = value.replace(/,/g, '');
 
-        const lastSet = cleanSet.split('.')[0].slice(-1); // ဒသမရှေ့ ဂဏန်းရဲ့ နောက်ဆုံးလုံး
+        const lastSet = cleanSet.slice(-1); // ဂဏန်းရဲ့ နောက်ဆုံးလုံး
         // Value က တစ်ခါတလေ ဒသမ မပါလာရင် ၀ တပ်ပေးရမယ် သို့မဟုတ် logic စစ်ရမယ်
         const lastValue = cleanValue.includes('.') ? cleanValue.split('.')[0].slice(-1) : cleanValue.slice(-1);
 
