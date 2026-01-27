@@ -20,7 +20,7 @@ const io = new Server(server, {
         cors: { origin: "*" },
         pingInterval: 25000, // 25 seconds (ပုံမှန်ထားလေ့ရှိတဲ့ တန်ဖိုး)
         pingTimeout: 20000,  // 20 seconds (လိုင်းနှေးလည်း စောင့်ပေးမယ်)
-        transports: ['websocket', 'polling'] // ဒါလေးပါ ထည့်ထားပါ
+        transports: ['websocket', ] // ဒါလေးပါ ထည့်ထားပါ
 });
 app.set('socketio', io);
 
