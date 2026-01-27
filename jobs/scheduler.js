@@ -69,12 +69,12 @@ const startScheduler = (onDataUpdate, io) => {
     // ☀️ MORNING SCRAPING SESSION
     // ==========================================
     cron.schedule('50 09 * * 1-5', () => {
-        startIntervalScraping(30000, 'Morning Slow', onDataUpdate);
+        startIntervalScraping(15000, 'Morning Slow', onDataUpdate);
     }, cronOptions);
 
     cron.schedule('50 11 * * 1-5', () => {
         stopIntervalScraping();
-        startIntervalScraping(15000, 'Morning Fast', onDataUpdate);
+        startIntervalScraping(5000, 'Morning Fast', onDataUpdate);
     }, cronOptions);
 
     // Backup Stop (Save မဖြစ်ခဲ့ရင် ၁၂:၁၀ မှာ အတင်းရပ်မယ်)
@@ -86,12 +86,12 @@ const startScheduler = (onDataUpdate, io) => {
     // 🌇 EVENING SCRAPING SESSION
     // ==========================================
     cron.schedule('50 13 * * 1-5', () => {
-        startIntervalScraping(30000, 'Evening Slow', onDataUpdate);
+        startIntervalScraping(15000, 'Evening Slow', onDataUpdate);
     }, cronOptions);
 
     cron.schedule('50 15 * * 1-5', () => {
         stopIntervalScraping();
-        startIntervalScraping(15000, 'Evening Fast', onDataUpdate);
+        startIntervalScraping(5000, 'Evening Fast', onDataUpdate);
     }, cronOptions);
 
     // Backup Stop (Save မဖြစ်ခဲ့ရင် ၄:၄၀ မှာ အတင်းရပ်မယ်)

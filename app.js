@@ -80,7 +80,7 @@ startScheduler((newData) => {
         if (!newData) return;
 
         // ❗ data မပြောင်းရင် emit မလုပ်
-        if (newData.twoD === lastTwoD) return;
+        // if (newData.twoD === lastTwoD) return;
 
         lastTwoD = newData.twoD;
 
