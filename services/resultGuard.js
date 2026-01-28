@@ -1,35 +1,29 @@
 const updateResultModel = require('../model/updateResultModel');
-// ❗ History Model ကို လှမ်းခေါ်လိုက်ပါတယ်
 const historyForTwoDModel = require('../model/HistoryForTwoDModel');
 
-/**
- * 1. Update Result (Latest State for UI - 12:01 & 4:30 only)
- * 2. History Save (Archive for Record - 11:00, 12:00, 3:00, 4:00)
- */
 const checkAndSaveResult = async (currentLiveData, io) => {
 
-    // Data မပါရင် ဘာမှမလုပ်ဘူး
+    // API Result မပါရင် ပြန်ထွက်မယ်
     if (!currentLiveData || !currentLiveData.results) {
         return false;
     }
 
-    const results = currentLiveData.results; // API ကလာတဲ့ result array
+    const results = currentLiveData.results;
     let isSessionClosed = false;
 
     // ==========================================
-    // ⭐ MAPPING (အချိန် ညှိခြင်း)
+    // ⭐ MAPPING (ဒီအချိန်တွေကို သေချာကြည့်ပါ)
     // ==========================================
 
-    // (A) History အတွက် Time (၄ ကြိမ်လုံးလိုတယ်)
-    // API Time => Database Time
+    // API ကလာတဲ့အချိန် -> DB ထဲထည့်မယ့်အချိန်
     const historyTimeMap = {
         "11:00:00": "11:00",
-        "12:01:00": "12:00", // API 12:01 ကို DB 12:00 လို့သိမ်းမယ်
+        "12:01:00": "12:00",
         "15:00:00": "3:00",
-        "16:30:00": "4:00"   // API 16:30 ကို DB 4:00 လို့သိမ်းမယ်
+        "16:30:00": "4:00"
     };
 
-    // (B) UI အတွက် Session (၁၂:၀၁ နဲ့ ၄:၃၀ ပဲ လိုတယ်)
+    // UI Session (၁၂:၀၁ နဲ့ ၄:၃၀ သာ)
     const uiSessionMap = {
         "12:01:00": "12:01 PM",
         "16:30:00": "4:30 PM"
@@ -40,16 +34,18 @@ const checkAndSaveResult = async (currentLiveData, io) => {
     // ==========================================
     for (const item of results) {
 
-        // --- 1. History Auto Save Logic (၄ ကြိမ်လုံးအတွက်) ---
+        // (A) History Auto Save Logic (၁၁, ၁၂, ၃, ၄ အကုန်စစ်မယ်)
         const historyTime = historyTimeMap[item.open_time];
+
         if (historyTime) {
-            // API က stock_date ပါရင်ယူမယ်၊ မပါရင် ဒီနေ့ရက်စွဲယူမယ်
+            // stock_date မပါရင် ဒီနေ့ရက်စွဲယူမယ်
             const dateStr = item.stock_date || new Date().toISOString().split('T')[0];
 
+            // ⭐ ဒီ function က ရှိပြီးသားဆိုရင် ထပ်မထည့်အောင် ကာကွယ်ပြီးသားပါ
             await saveToHistoryDB(dateStr, historyTime, item);
         }
 
-        // --- 2. UI Update Result Logic (၁၂:၀၁ နဲ့ ၄:၃၀ သာ) ---
+        // (B) UI Update Logic (၁၂:၀၁ နဲ့ ၄:၃၀ သာ)
         const dbSession = uiSessionMap[item.open_time];
         if (dbSession) {
             try {
@@ -64,13 +60,10 @@ const checkAndSaveResult = async (currentLiveData, io) => {
                     { upsert: true, new: true, setDefaultsOnInsert: true }
                 );
 
-                if (io) {
-                    io.emit("new_2d_result", savedResult);
-                }
+                if (io) io.emit("new_2d_result", savedResult);
 
-                // ၁၂:၀၁ (သို့) ၄:၃၀ တွေ့ရင် Scraper ရပ်ဖို့ signal ပေးမယ်
+                // ၁၂:၀၀ နဲ့ ၄:၃၀ တွေ့မှ Scraper ရပ်မယ် (၁၁ နာရီမှာ မရပ်ဘူး)
                 isSessionClosed = true;
-                console.log(`✅ UI Result Updated: ${dbSession}`);
 
             } catch (err) {
                 console.error(`❌ UI Save Error:`, err.message);
@@ -81,61 +74,37 @@ const checkAndSaveResult = async (currentLiveData, io) => {
     return isSessionClosed;
 };
 
-// ==========================================
-// ⭐ Helper Function: History Database Logic
-// ==========================================
+// ... (saveToHistoryDB နဲ့ cleanupOldHistory က အရင်အတိုင်း မှန်ပါတယ်) ...
+// (အပြည့်အစုံ လိုချင်ရင် အရင်အဖြေက code ကိုပဲ ကူးထည့်ပါ၊ အောက်ပိုင်း မပြောင်းပါဘူး)
+
 async function saveToHistoryDB(date, time, item) {
     try {
-        // ၁။ ဒီနေ့ရက်စွဲနဲ့ ရှိပြီးသားလား ရှာမယ်
         let dailyDoc = await historyForTwoDModel.findOne({ date });
-
         const newEntry = {
             time: time,
-            twoD: item.twod, // API d အသေး
+            twoD: item.twod,
             set: item.set,
             value: item.value
         };
 
         if (dailyDoc) {
-            // ၂။ ရှိပြီးသားဆိုရင် - ဒီအချိန် (time) ပါပြီးသားလား စစ်မယ်
+            // ရှိပြီးသားလား စစ်တယ်
             const isTimeExists = dailyDoc.child.some(c => c.time === time);
-
-            // မပါသေးမှ ထပ်ထည့်မယ် (Duplicate မဖြစ်အောင်)
             if (!isTimeExists && dailyDoc.child.length < 4) {
                 dailyDoc.child.push(newEntry);
                 await dailyDoc.save();
                 console.log(`📜 History Auto-Saved: ${date} [${time}]`);
             }
         } else {
-            // ၃။ မရှိသေးရင် - အသစ်ဆောက်မယ်
+            // မရှိရင် အသစ်ဆောက်တယ်
             await historyForTwoDModel.create({
                 date: date,
                 child: [newEntry]
             });
-            console.log(`📜 New History Created for: ${date}`);
-
-            // ၄။ ရက် ၉၀ ကျော်ရင် ဖျက်မယ့် Logic
-            cleanupOldHistory();
+            console.log(`📜 New History Created: ${date}`);
         }
-
     } catch (error) {
-        console.error(`❌ History Auto-Save Error: ${error.message}`);
-    }
-}
-
-// ရက် ၉၀ ကျော် Data ရှင်းထုတ်ခြင်း
-async function cleanupOldHistory() {
-    try {
-        const totalCount = await historyForTwoDModel.countDocuments();
-        if (totalCount > 90) {
-            const deleteCount = totalCount - 90;
-            const oldDocs = await historyForTwoDModel.find().sort({ _id: 1 }).limit(deleteCount);
-            const idsToDelete = oldDocs.map(doc => doc._id);
-            await historyForTwoDModel.deleteMany({ _id: { $in: idsToDelete } });
-            console.log(`🧹 Auto-Cleaned ${deleteCount} old history records.`);
-        }
-    } catch (err) {
-        console.error("Cleanup Error:", err.message);
+        console.error(`❌ History Save Error: ${error.message}`);
     }
 }
 

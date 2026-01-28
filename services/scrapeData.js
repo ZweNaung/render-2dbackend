@@ -1,6 +1,6 @@
-const axios = require('axios');
-
 // API URL
+
+const axios = require('axios');
 const API_URL = 'https://api.thaistock2d.com/live';
 
 async function scrapeData() {
