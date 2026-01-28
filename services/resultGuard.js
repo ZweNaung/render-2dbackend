@@ -3,11 +3,12 @@ const updateResultModel = require('../model/updateResultModel');
 const historyForTwoDModel = require('../model/HistoryForTwoDModel');
 
 /**
- * 1. Update Result (Latest State for UI)
- * 2. History Save (Archive for Record)
+ * 1. Update Result (Latest State for UI - 12:01 & 4:30 only)
+ * 2. History Save (Archive for Record - 11:00, 12:00, 3:00, 4:00)
  */
 const checkAndSaveResult = async (currentLiveData, io) => {
 
+    // Data မပါရင် ဘာမှမလုပ်ဘူး
     if (!currentLiveData || !currentLiveData.results) {
         return false;
     }
@@ -16,22 +17,22 @@ const checkAndSaveResult = async (currentLiveData, io) => {
     let isSessionClosed = false;
 
     // ==========================================
-    // MAPPING (အချိန် ညှိခြင်း)
+    // ⭐ MAPPING (အချိန် ညှိခြင်း)
     // ==========================================
 
-    // ၁။ UI အတွက် Session (၁၂:၀၁ နဲ့ ၄:၃၀ ပဲ လိုတယ်)
-    const uiSessionMap = {
-        "12:01:00": "12:01 PM",
-        "16:30:00": "4:30 PM"
-    };
-
-    // ၂။ History အတွက် Time (၁၁:၀၀၊ ၁၂:၀၀၊ ၃:၀၀၊ ၄:၀၀ အကုန်လိုတယ်)
+    // (A) History အတွက် Time (၄ ကြိမ်လုံးလိုတယ်)
     // API Time => Database Time
     const historyTimeMap = {
         "11:00:00": "11:00",
-        "12:01:00": "12:00",
+        "12:01:00": "12:00", // API 12:01 ကို DB 12:00 လို့သိမ်းမယ်
         "15:00:00": "3:00",
-        "16:30:00": "4:00"
+        "16:30:00": "4:00"   // API 16:30 ကို DB 4:00 လို့သိမ်းမယ်
+    };
+
+    // (B) UI အတွက် Session (၁၂:၀၁ နဲ့ ၄:၃၀ ပဲ လိုတယ်)
+    const uiSessionMap = {
+        "12:01:00": "12:01 PM",
+        "16:30:00": "4:30 PM"
     };
 
     // ==========================================
@@ -39,7 +40,7 @@ const checkAndSaveResult = async (currentLiveData, io) => {
     // ==========================================
     for (const item of results) {
 
-        // --- (A) History ထဲ Auto ထည့်မယ့် Logic ---
+        // --- 1. History Auto Save Logic (၄ ကြိမ်လုံးအတွက်) ---
         const historyTime = historyTimeMap[item.open_time];
         if (historyTime) {
             // API က stock_date ပါရင်ယူမယ်၊ မပါရင် ဒီနေ့ရက်စွဲယူမယ်
@@ -48,7 +49,7 @@ const checkAndSaveResult = async (currentLiveData, io) => {
             await saveToHistoryDB(dateStr, historyTime, item);
         }
 
-        // --- (B) UI Update Result Logic (အရင်ကုဒ်) ---
+        // --- 2. UI Update Result Logic (၁၂:၀၁ နဲ့ ၄:၃၀ သာ) ---
         const dbSession = uiSessionMap[item.open_time];
         if (dbSession) {
             try {
@@ -90,7 +91,7 @@ async function saveToHistoryDB(date, time, item) {
 
         const newEntry = {
             time: time,
-            twoD: item.twod,
+            twoD: item.twod, // API d အသေး
             set: item.set,
             value: item.value
         };
@@ -113,7 +114,7 @@ async function saveToHistoryDB(date, time, item) {
             });
             console.log(`📜 New History Created for: ${date}`);
 
-            // ၄။ ရက် ၉၀ ကျော်ရင် ဖျက်မယ့် Logic (Controller ထဲကအတိုင်း)
+            // ၄။ ရက် ၉၀ ကျော်ရင် ဖျက်မယ့် Logic
             cleanupOldHistory();
         }
 

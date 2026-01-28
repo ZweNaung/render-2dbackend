@@ -101,16 +101,24 @@ const startScheduler = (onDataUpdate, io) => {
 
 
     // ==========================================
-    // ⭐ AUTO SAVE CHECKER (Logic Updated)
+    // ⭐ AUTO SAVE CHECKERS (4 Times)
     // ==========================================
 
-    // ၁။ မနက်ပိုင်း ၁၂:၀၀ မှ ၁၂:၀၅ အတွင်း (Intermission စစ်ရန်)
-    cron.schedule('0-5 12 * * 1-5', async () => {
+    // ၁။ ☀️ 11:00 AM Check (အသစ်ထည့်ထားသည်)
+    // ၁၁:၀၀ ကနေ ၁၁:၀၅ အတွင်း စစ်မယ်၊ တွေ့ရင် Save မယ်၊ Scraper မရပ်ဘူး
+    cron.schedule('0-5 11 * * 1-5', async () => {
+        console.log("⏰ 11:00 AM Check Triggered");
+        if(latestDataCache) {
+            await checkAndSaveResult(latestDataCache, io);
+        }
+    }, cronOptions);
+
+    // ၂။ ☀️ 12:00 PM Check (Logic: 12:01 Result)
+    cron.schedule('0-10 12 * * 1-5', async () => {
         console.log("⏰ 12:00 PM Check Triggered");
         if(latestDataCache) {
-            // ⭐ resultGuard က true ပြန်လာရင် ရပ်တော့မယ်
+            // ⭐ 12:00 မှာ Result ရရင် Scraper ရပ်မယ် (true ပြန်လာရင်)
             const isSaved = await checkAndSaveResult(latestDataCache, io);
-
             if (isSaved) {
                 console.log("🛑 Morning Result Saved. Stopping Scraper Immediately.");
                 await stopIntervalScraping();
@@ -118,13 +126,21 @@ const startScheduler = (onDataUpdate, io) => {
         }
     }, cronOptions);
 
-    // ၂။ ညနေပိုင်း ၄:၃၀ မှ ၄:၃၅ အတွင်း (Closed စစ်ရန်)
-    cron.schedule('30-35 16 * * 1-5', async () => {
+    // ၃။ 🌇 3:00 PM Check (အသစ်ထည့်ထားသည်)
+    // ၃:၀၀ ကနေ ၃:၀၅ အတွင်း စစ်မယ်၊ တွေ့ရင် Save မယ်၊ Scraper မရပ်ဘူး
+    cron.schedule('0-5 15 * * 1-5', async () => {
+        console.log("⏰ 3:00 PM Check Triggered");
+        if(latestDataCache) {
+            await checkAndSaveResult(latestDataCache, io);
+        }
+    }, cronOptions);
+
+    // ၄။ 🌇 4:30 PM Check (Logic: 16:30 Result)
+    cron.schedule('30-40 16 * * 1-5', async () => {
         console.log("⏰ 4:30 PM Check Triggered");
         if(latestDataCache) {
-            // ⭐ resultGuard က true ပြန်လာရင် ရပ်တော့မယ်
+            // ⭐ 4:30 မှာ Result ရရင် Scraper ရပ်မယ် (true ပြန်လာရင်)
             const isSaved = await checkAndSaveResult(latestDataCache, io);
-
             if (isSaved) {
                 console.log("🛑 Evening Result Saved. Stopping Scraper Immediately.");
                 await stopIntervalScraping();
@@ -133,23 +149,20 @@ const startScheduler = (onDataUpdate, io) => {
     }, cronOptions);
 
     // ==========================================
-    // 🧪 TEST MODE (စမ်းသပ်ရန် နေရာ)
+    // 🧪 TEST MODE
     // ==========================================
 
-    // 👇 စမ်းချင်ရင် ဒီနေရာမှာ true ပြောင်းလိုက်ပါ
+    // 👇 Production တင်ရင် false ပြောင်းပါ
     const runTest = true;
 
     if (runTest) {
         console.log("⚠️ TEST MODE ACTIVATED: Running immediate scrape...");
-
-        // ၁၀ စက္ကန့်တစ်ခါ ချက်ချင်းစဆွဲမယ်
         startIntervalScraping(10000, 'TEST_RUN', onDataUpdate);
 
-        // (Optional) ၂ မိနစ်ကြာရင် သူ့အလိုလို ပြန်ရပ်ခိုင်းမယ် (Server မလေးအောင်)
         setTimeout(async () => {
             console.log("🧪 Test Mode: Auto-stopping after 2 minutes.");
             await stopIntervalScraping();
-        }, 120000); // 120,000 ms = 2 minutes
+        }, 120000);
     }
 };
 
