@@ -20,7 +20,7 @@ const io = new Server(server, {
         cors: { origin: "*" },
         pingInterval: 25000, // 25 seconds (ပုံမှန်ထားလေ့ရှိတဲ့ တန်ဖိုး)
         pingTimeout: 20000,  // 20 seconds (လိုင်းနှေးလည်း စောင့်ပေးမယ်)
-        transports: ['websocket', ] // ဒါလေးပါ ထည့်ထားပါ
+        transports: ['websocket','polling' ] // ဒါလေးပါ ထည့်ထားပါ
 });
 app.set('socketio', io);
 
@@ -82,6 +82,8 @@ startScheduler((scrapedResponse) => { // ဒီမှာ လာယူတာပ�
 
         const liveData = scrapedResponse.live;
 
+        lastTwoD = liveData.twoD;
+
         globalLatestData = {
                 set: liveData.set,
                 value: liveData.value,
@@ -95,7 +97,6 @@ startScheduler((scrapedResponse) => { // ဒီမှာ လာယူတာပ�
         console.log("📡 Live Data Updated:", globalLatestData.set);
         console.log("📡 Live Data Updated:", globalLatestData.value );
         console.log("📡 Live Data Updated:", globalLatestData.updatedAt );
-
 }, io);
 
 // ===============================
