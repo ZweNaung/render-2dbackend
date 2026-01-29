@@ -5,6 +5,8 @@ const API_URL = 'https://api.thaistock2d.com/live';
 const StockApiResponse = require('../model/thaistock2d'); // Model ကို import လုပ်ပါ
 
 
+
+
 async function scrapeData() {
     try {
         // ၁။ API ကို လှမ်းခေါ်မယ် (5 seconds timeout ထားပါ)
@@ -99,14 +101,7 @@ async function scrapeData() {
 
             console.log("📊 History Data to Save:", JSON.stringify(historyfor2dData, null, 2));
 
-            /* Database ထဲ သိမ်းမည့်ပုံစံ (ဥပမာ):
-            await HistoryTwoD.findOneAndUpdate(
-                { date: currentDate },
-                { $set: { child: historyEntries } },
-                { upsert: true, new: true }
-            );
-            */
-        }
+                    }
 
 
     } catch (error) {
@@ -130,6 +125,29 @@ module.exports = { scrapeData, closeBrowser };
 
 
 
+// scrapeData.js ထဲမှာ စမ်းသပ်ရန်
+// scrapeData.js ထဲမှာ ဒီအတိုင်း အတိအကျ ကူးထည့်ပေးပါ
+// async function scrapeData() {
+//     // API မခေါ်ဘဲ Data အတု ပြန်ပေးမယ်
+//     return {
+//         live: {
+//             set: "1,234.56",
+//             value: "50,000.00",
+//             twoD: "99",
+//             time: "04:30:00 PM"
+//         },
+//         results: [
+//             {
+//                 // ⭐ အရေးကြီးဆုံးနေရာ - resultGuard က ဒီအချိန်ကိုပဲ ဖမ်းမှာပါ
+//                 openTime: "16:30:00",
+//                 twod: "99",
+//                 set: "1,234.56",
+//                 value: "50,000.00",
+//                 stockDate: "2026-01-29" // ဒီနေ့ရက်စွဲ ဖြစ်ရပါမယ်
+//             }
+//         ]
+//     };
+// }
 
 
 //=================
