@@ -76,24 +76,23 @@ app.get('/api/live', (req, res) => {
 // ===============================
 let lastTwoD = null;
 
-// ❗ (Modified) ဒီနေရာမှာ io ကို parameter အနေနဲ့ ထည့်ပေးလိုက်ပါပြီ
-startScheduler((newData) => {
-        if (!newData) return;
 
-        // ❗ data မပြောင်းရင် emit မလုပ်
-        // if (newData.twoD === lastTwoD) return;
+startScheduler((scrapedResponse) => { // ဒီမှာ လာယူတာပါ
+        if (!scrapedResponse || !scrapedResponse.live) return;
 
-        lastTwoD = newData.twoD;
+        const liveData = scrapedResponse.live;
 
         globalLatestData = {
-                ...newData,
-                updatedAt: newData.time   // ❗ scrape time ကိုပဲသုံး
+                set: liveData.set,
+                value: liveData.value,
+                twoD: liveData.twoD,
+                updatedAt: liveData.time
         };
 
+        // Socket နဲ့ Live ပြမယ်
         io.emit("live_2d_data", globalLatestData);
-        console.log("📡 Real-time data emitted:", globalLatestData.twoD);
 
-}, io); // 👈 io ကို ဒီမှာ pass လုပ်ထားတယ်
+}, io);
 
 // ===============================
 // ⭐ (5) Daily Reset Cron (OK)

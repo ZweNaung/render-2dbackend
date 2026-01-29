@@ -22,21 +22,18 @@ const startIntervalScraping = (intervalMs, modeName, onDataUpdate, io) => {
             // ⭐ ပြင်လိုက်တဲ့နေရာ (၁) - response တစ်ခုလုံးကို ဆွဲယူလိုက်တယ်
             const scrapedResponse = await scrapeData();
 
-            // ⭐ ပြင်လိုက်တဲ့နေရာ (၂) - live data ပါမှ အလုပ်လုပ်မယ်
-            if (scrapedResponse && scrapedResponse.live) {
-                const data = scrapedResponse.live;
-
-                // Socket နဲ့ Live ပြဖို့ app.js ရဲ့ callback ဆီ ပို့တယ်
-                if (onDataUpdate) onDataUpdate(data);
-
-                // ⭐ ပြင်လိုက်တဲ့နေရာ (၃) - ရလာတဲ့ result တွေကို DB ထဲ auto-save ဖို့ resultGuard ဆီ ပို့တယ်
-                // scrapedResponse ထဲမှာ live ရော results (array) ရော ပါသွားပြီ
-                const shouldStop = await checkAndSaveResult(scrapedResponse, io);
-
-                if (shouldStop) {
-                    console.log(`🛑 Result confirmed. Stopping ${modeName}...`);
-                    await stopIntervalScraping();
+                 // app.js ဆီကို Live data ကော Result data ကော ပါတဲ့
+                // scrapedResponse တစ်ခုလုံးကို onDataUpdate callback နဲ့ ပို့ပေးလိုက်တာပါ
+                if (onDataUpdate) {
+                    onDataUpdate(scrapedResponse);
                 }
+
+                // ၂။ Database ထဲ သိမ်းဖို့အတွက်လည်း scrapedResponse ကိုပဲ သုံးမယ်
+            const shouldStop = await checkAndSaveResult(scrapedResponse, io);
+
+            if (shouldStop) {
+                console.log(`🛑 Result confirmed. Stopping ${modeName}...`);
+                await stopIntervalScraping();
             }
 
         } catch (e) {
