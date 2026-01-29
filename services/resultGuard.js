@@ -26,7 +26,7 @@ const checkAndSaveResult = async (scrapedResponse, io) => {
         "11:00:00": "11:00",
         "12:01:00": "12:00",
         "15:00:00": "3:00",
-        "16:30:00": "4:00"
+        "16:30:00": "4:30"
     };
 
     for (const item of results) {

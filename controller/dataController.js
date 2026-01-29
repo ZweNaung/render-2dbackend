@@ -126,7 +126,7 @@ const updateChildResult = async (req, res) => {
 exports.elevenInsertAPI = (req, res) => dailyDataInsertController(req, res, "11:00");
 exports.twelveInsertAPI = (req, res) => dailyDataInsertController(req, res, "12:00");
 exports.threeInsertAPI = (req, res) => dailyDataInsertController(req, res, "3:00");
-exports.fourInsertAPI = (req, res) => dailyDataInsertController(req, res, "4:00");
+exports.fourInsertAPI = (req, res) => dailyDataInsertController(req, res, "4:30");
 
 // Retrieval Functions (Router uses these names)
 exports.getDailyData = handleGetDailyData;
