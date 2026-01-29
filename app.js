@@ -91,6 +91,10 @@ startScheduler((scrapedResponse) => { // ဒီမှာ လာယူတာပ�
 
         // Socket နဲ့ Live ပြမယ်
         io.emit("live_2d_data", globalLatestData);
+        console.log("📡 Live Data Updated:", globalLatestData.twoD );
+        console.log("📡 Live Data Updated:", globalLatestData.set);
+        console.log("📡 Live Data Updated:", globalLatestData.value );
+        console.log("📡 Live Data Updated:", globalLatestData.updatedAt );
 
 }, io);
 
