@@ -3,111 +3,97 @@ const historyForTwoDModel = require('../model/HistoryForTwoDModel');
 
 const checkAndSaveResult = async (currentLiveData, io) => {
 
-    // API Result မပါရင် ပြန်ထွက်မယ်
-    if (!currentLiveData || !currentLiveData.results) {
-        return false;
-    }
-
-    const results = currentLiveData.results;
-    let isSessionClosed = false;
-
-    // ==========================================
-    // ⭐ MAPPING (ဒီအချိန်တွေကို သေချာကြည့်ပါ)
-    // ==========================================
-
-    // API ကလာတဲ့အချိန် -> DB ထဲထည့်မယ့်အချိန်
-    const historyTimeMap = {
-        "11:00:00": "11:00",
-        "12:01:00": "12:00",
-        "15:00:00": "3:00",
-        "16:30:00": "4:00"
-    };
-
-    // UI Session (၁၂:၀၁ နဲ့ ၄:၃၀ သာ)
-    const uiSessionMap = {
-        "12:01:00": "12:01 PM",
-        "16:30:00": "4:30 PM"
-    };
-
-    // ==========================================
-    // LOOP & SAVE
-    // ==========================================
-    for (const item of results) {
-
-        // (A) History Auto Save Logic (၁၁, ၁၂, ၃, ၄ အကုန်စစ်မယ်)
-        const historyTime = historyTimeMap[item.open_time];
-
-        if (historyTime) {
-            // stock_date မပါရင် ဒီနေ့ရက်စွဲယူမယ်
-            const dateStr = item.stock_date || new Date().toISOString().split('T')[0];
-
-            // ⭐ ဒီ function က ရှိပြီးသားဆိုရင် ထပ်မထည့်အောင် ကာကွယ်ပြီးသားပါ
-            await saveToHistoryDB(dateStr, historyTime, item);
+    const checkAndSaveResult = async (scrapedResponse, io) => {
+        // scrapedResponse.results (array) မပါရင် ပြန်ထွက်မယ်
+        if (!scrapedResponse || !scrapedResponse.results || scrapedResponse.results.length === 0) {
+            return false;
         }
 
-        // (B) UI Update Logic (၁၂:၀၁ နဲ့ ၄:၃၀ သာ)
-        const dbSession = uiSessionMap[item.open_time];
-        if (dbSession) {
-            try {
-                const savedResult = await updateResultModel.findOneAndUpdate(
-                    { session: dbSession },
-                    {
-                        twoD: item.twod,
-                        set: item.set,
-                        value: item.value,
-                        session: dbSession
-                    },
-                    { upsert: true, new: true, setDefaultsOnInsert: true }
-                );
+        const results = scrapedResponse.results;
+        let isSessionClosed = false;
 
-                if (io) io.emit("new_2d_result", savedResult);
-
-                // ၁၂:၀၀ နဲ့ ၄:၃၀ တွေ့မှ Scraper ရပ်မယ် (၁၁ နာရီမှာ မရပ်ဘူး)
-                isSessionClosed = true;
-
-            } catch (err) {
-                console.error(`❌ UI Save Error:`, err.message);
-            }
-        }
-    }
-
-    return isSessionClosed;
-};
-
-// ... (saveToHistoryDB နဲ့ cleanupOldHistory က အရင်အတိုင်း မှန်ပါတယ်) ...
-// (အပြည့်အစုံ လိုချင်ရင် အရင်အဖြေက code ကိုပဲ ကူးထည့်ပါ၊ အောက်ပိုင်း မပြောင်းပါဘူး)
-
-async function saveToHistoryDB(date, time, item) {
-    try {
-        let dailyDoc = await historyForTwoDModel.findOne({ date });
-        const newEntry = {
-            time: time,
-            twoD: item.twod,
-            set: item.set,
-            value: item.value
+        // ၁။ UI အတွက် Session Map (Enum အတိုင်း PM ထည့်ထားသည်)
+        const uiSessionMap = {
+            "12:01:00": "12:01 PM",
+            "16:30:00": "4:30 PM"
         };
 
-        if (dailyDoc) {
-            // ရှိပြီးသားလား စစ်တယ်
-            const isTimeExists = dailyDoc.child.some(c => c.time === time);
-            if (!isTimeExists && dailyDoc.child.length < 4) {
-                dailyDoc.child.push(newEntry);
-                await dailyDoc.save();
-                console.log(`📜 History Auto-Saved: ${date} [${time}]`);
+        // ၂။ History အတွက် Time Map (Schema အတိုင်း format စီသည်)
+        const historyTimeMap = {
+            "11:00:00": "11:00",
+            "12:01:00": "12:00",
+            "15:00:00": "3:00",
+            "16:30:00": "4:00"
+        };
+
+
+        for (const item of results) {
+            const rawTime = item.openTime; // API ကလာတဲ့အချိန် (ဥပမာ: "12:01:00")
+
+            // --- (A) UI RESULT သိမ်းခြင်း (12:01 PM / 4:30 PM) ---
+            const uiSessionName = uiSessionMap[rawTime];
+            if (uiSessionName) {
+                try {
+                    const savedResult = await updateResultModel.findOneAndUpdate(
+                        {session: uiSessionName},
+                        {
+                            twoD: item.twod,
+                            set: item.set,
+                            value: item.value,
+                            session: uiSessionName
+                        },
+                        {upsert: true, new: true}
+                    );
+
+                    // Socket နဲ့ UI ကိုလှမ်းပို့မယ်
+                    if (io) io.emit("new_2d_result", savedResult);
+                    isSessionClosed = true; // ဂဏန်းထွက်ပြီဖြစ်လို့ Scraper ရပ်ခိုင်းမယ်
+                } catch (err) {
+                    console.error(`❌ UI Result Save Error:`, err.message);
+                }
             }
-        } else {
-            // မရှိရင် အသစ်ဆောက်တယ်
-            await historyForTwoDModel.create({
-                date: date,
-                child: [newEntry]
-            });
-            console.log(`📜 New History Created: ${date}`);
+
+            // --- (B) HISTORY သိမ်းခြင်း (11:00, 12:00, 3:00, 4:00) ---
+            const historyTime = historyTimeMap[rawTime];
+            if (historyTime) {
+                // Date Format ပြောင်းခြင်း (YYYY-MM-DD -> DD-MM-YYYY)
+                const [year, month, day] = item.stockDate.split('-');
+                const formattedDate = `${day}-${month}-${year}`;
+
+                await saveToHistoryDB(formattedDate, historyTime, item);
+            }
         }
-    } catch (error) {
-        console.error(`❌ History Save Error: ${error.message}`);
+
+        return isSessionClosed;
+
+        // History DB ထဲသို့ Nested ပုံစံဖြင့် သိမ်းပေးသည့် Function
+        async function saveToHistoryDB(date, time, item) {
+            try {
+                const newEntry = {
+                    time: time,
+                    twoD: item.twod,
+                    set: item.set,
+                    value: item.value
+                };
+
+                // နေ့စွဲနဲ့ရှာမယ်၊ မရှိရင် အသစ်ဆောက်မယ်၊ ရှိရင် child ထဲ ထပ်ထည့်မယ်
+                await historyForTwoDModel.findOneAndUpdate(
+                    {date: date},
+                    {
+                        $addToSet: {child: newEntry} // တူညီတဲ့ entry ရှိရင် ထပ်မထည့်အောင် $addToSet သုံးသည်
+                    },
+                    {upsert: true, new: true}
+                );
+
+                console.log(`📜 History Saved: ${date} [${time}]`);
+            } catch (error) {
+                console.error(`❌ History Save Error: ${error.message}`);
+            }
+
+
+        }
     }
 }
-
 module.exports = { checkAndSaveResult };
 
 

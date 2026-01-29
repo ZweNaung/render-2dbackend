@@ -2,6 +2,8 @@
 
 const axios = require('axios');
 const API_URL = 'https://api.thaistock2d.com/live';
+const StockApiResponse = require('../model/thaistock2d'); // Model ကို import လုပ်ပါ
+
 
 async function scrapeData() {
     try {
@@ -13,32 +15,99 @@ async function scrapeData() {
             timeout: 5000
         });
 
-        const apiData = response.data;
+        const stockData = new StockApiResponse(response.data);
+
+        // console.log("Raw API Results:", stockData.result);
 
         // Data မပါလာရင် null ပြန်မယ်
-        if (!apiData || !apiData.live) {
+        if (!stockData || !stockData.live) {
             console.log("❌ API returns empty data");
             return null;
         }
 
-        // ==========================================
-        // ⭐ ခင်ဗျားမေးတဲ့ mappedData ထားရမယ့်နေရာ
-        // ==========================================
-        const mappedData = {
-            set: apiData.live.set,       // "1,334.45"
-            value: apiData.live.value,   // "54,241.97"
+        //=====================
+        //Live data
+        //=====================
+        const LiveData ={
+            set: stockData.live.set,
+            value: stockData.live.value,
+            twoD: stockData.live.twod,
+            updatedAt: stockData.serverTime
+        }
 
-            // API က 'twod' (d အသေး) နဲ့လာတာကို App ကသိတဲ့ 'twoD' (D အကြီး) ပြောင်းပေးရမယ်
-            twoD: apiData.live.twod,
-
-            time: Date.now(),            // Server Current Time
-
-            // ⭐ ဒီ line က resultGuard အတွက် အရမ်းအရေးကြီးပါတယ်
-            // API ရဲ့ result array တစ်ခုလုံးကို သယ်သွားပေးတာပါ
-            results: apiData.result
+        return {
+            live: LiveData,
+            results: stockData.result // ဒါက resultGuard အတွက် ပါသွားအောင်လို့
         };
 
-        return mappedData;
+        //=========================
+        //update Result
+        //==========================
+        // ၁။ ၁၂:၀၁ နဲ့ ၄:၃၀ အချိန်တွေကို array တစ်ခုထဲထည့်ထားပါ
+        const targetSessions = ["12:01", "16:30"];
+
+        // ၂။ Result array ထဲကနေ လိုချင်တဲ့ အချိန်တွေကို loop ပတ်ပြီး ရှာပါမယ်
+        for (const targetTime of targetSessions) {
+
+            // openTime မှာ "12:01" ပါတာကို ရှာတာဖြစ်ပါတယ်
+            const foundItem = stockData.result.find(item => item.openTime.includes(targetTime));
+
+            if (foundItem) {
+                // ၃။ Schema Format အတိုင်း data ပြင်ဆင်မယ်
+                const updateResultData = {
+                    twoD: foundItem.twod,
+                    set: foundItem.set,
+                    value: foundItem.value,
+                    // Enum နဲ့ကိုက်အောင် format ပြန်ပြောင်းပေးပါ (ဥပမာ: 12:01 -> 12:01 PM)
+                    session: targetTime === "12:01" ? "12:01 PM" : "4:30 PM"
+                };
+
+                console.log(`✅ Found data for session: ${updateResultData.session}`);
+                console.log(`✅ Found data for session: ${updateResultData.twoD}`);
+                console.log(`✅ Found data for session: ${updateResultData.set}`);
+                console.log(`✅ Found data for session: ${updateResultData.value}`);
+
+                // ဒီနေရာမှာ Database ထဲ update/save လုပ်တဲ့ code ရေးနိုင်ပါတယ်
+                // await updateResultModel.findOneAndUpdate({ session: updateResultData.session }, updateResultData, { upsert: true });
+            }
+        }
+
+        //==========================
+        //History For Two D
+        //==========================
+        // ၁။ API ကလာတဲ့ Result array ထဲမှာ data ရှိမရှိ အရင်စစ်မယ်
+        if (stockData.result && stockData.result.length > 0) {
+
+            // ၁။ API ကလာတဲ့ format (2026-01-29) ကို ယူပါ
+            const rawDate = stockData.result[0]?.stockDate || ""
+            // ၂။ "-" နဲ့ ခွဲထုတ်ပြီး ပုံစံပြန်စီပါ
+            const [year, month, day] = rawDate.split('-');
+            const formattedDate = `${day}-${month}-${year}`; // "29-01-2026" ရပါပြီ
+
+            // ၃။ Schema ထဲက child array အတွက် data format ပြင်မယ်
+            const historyEntries = stockData.result.map(item => ({
+                time: item.openTime,
+                twoD: item.twod,
+                set: item.set,
+                value: item.value
+            }));
+
+            const historyfor2dData = {
+                date: formattedDate,
+                child: historyEntries
+            };
+
+            console.log("📊 History Data to Save:", JSON.stringify(historyfor2dData, null, 2));
+
+            /* Database ထဲ သိမ်းမည့်ပုံစံ (ဥပမာ):
+            await HistoryTwoD.findOneAndUpdate(
+                { date: currentDate },
+                { $set: { child: historyEntries } },
+                { upsert: true, new: true }
+            );
+            */
+        }
+
 
     } catch (error) {
         console.error("❌ Scrape Data (API) Error:", error.message);
@@ -51,6 +120,10 @@ async function scrapeData() {
 const closeBrowser = async () => {
     return true;
 };
+
+// if (require.main === module) {
+//     scrapeData().then(() => console.log("Done!"));
+// }
 
 module.exports = { scrapeData, closeBrowser };
 

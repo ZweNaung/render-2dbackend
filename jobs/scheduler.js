@@ -19,20 +19,20 @@ const startIntervalScraping = (intervalMs, modeName, onDataUpdate, io) => {
 
         isScraping = true;
         try {
-            const data = await scrapeData();
+            // ⭐ ပြင်လိုက်တဲ့နေရာ (၁) - response တစ်ခုလုံးကို ဆွဲယူလိုက်တယ်
+            const scrapedResponse = await scrapeData();
 
-            if (data) {
-                // ၁။ Socket နဲ့ Data ပို့မယ်
-                console.log(`[${modeName}] -> 2D: ${data.twoD}`);
+            // ⭐ ပြင်လိုက်တဲ့နေရာ (၂) - live data ပါမှ အလုပ်လုပ်မယ်
+            if (scrapedResponse && scrapedResponse.live) {
+                const data = scrapedResponse.live;
+
+                // Socket နဲ့ Live ပြဖို့ app.js ရဲ့ callback ဆီ ပို့တယ်
                 if (onDataUpdate) onDataUpdate(data);
 
-                // ==================================================
-                // ⭐ အဓိက ပြင်ဆင်ချက် (Real-time Auto Save)
-                // ==================================================
-                // Scrape လုပ်တိုင်း result ပါ/မပါ စစ်မယ် (၁၁, ၁၂, ၃, ၄ အကုန်စစ်မယ်)
-                const shouldStop = await checkAndSaveResult(data, io);
+                // ⭐ ပြင်လိုက်တဲ့နေရာ (၃) - ရလာတဲ့ result တွေကို DB ထဲ auto-save ဖို့ resultGuard ဆီ ပို့တယ်
+                // scrapedResponse ထဲမှာ live ရော results (array) ရော ပါသွားပြီ
+                const shouldStop = await checkAndSaveResult(scrapedResponse, io);
 
-                // အကယ်၍ ၁၂:၀၁ (သို့) ၄:၃၀ ဂဏန်းထွက်ပြီးပြီဆိုရင် Scraper ရပ်မယ်
                 if (shouldStop) {
                     console.log(`🛑 Result confirmed. Stopping ${modeName}...`);
                     await stopIntervalScraping();
