@@ -88,6 +88,7 @@ startScheduler((scrapedResponse) => { // ဒီမှာ လာယူတာပ�
                 set: liveData.set,
                 value: liveData.value,
                 twoD: liveData.twoD,
+                // updatedAt: liveData.time
                 updatedAt: liveData.time
         };
 
