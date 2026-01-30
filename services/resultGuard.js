@@ -12,6 +12,7 @@ const checkAndSaveResult = async (scrapedResponse, io) => {
 
     // ⭐ Server Time (Asia/Yangon)
     const now = new Date();
+    // currentHour ကို 0-23 format နဲ့ ရပါမယ် (ဥပမာ: 3 PM = 15, 4 PM = 16)
     const currentHour = parseInt(now.toLocaleString('en-US', { timeZone: 'Asia/Yangon', hour: 'numeric', hour12: false }));
 
     const uiSessionMap = {
@@ -23,7 +24,7 @@ const checkAndSaveResult = async (scrapedResponse, io) => {
         "11:00:00": "11:00",
         "12:01:00": "12:00",
         "15:00:00": "3:00",
-        "16:30:00": "4:30"
+        "16:30:00": "4:30" // ⚠️ သတိပြုရန်: 4:30 လား 4:00 လား Database နဲ့ပြန်ညှိပါ (မင်း code မှာ 4:30 ဖြစ်နေလို့ပါ)
     };
 
     for (const item of results) {
@@ -33,8 +34,7 @@ const checkAndSaveResult = async (scrapedResponse, io) => {
         const uiSessionName = uiSessionMap[rawTime];
         if (uiSessionName) {
             try {
-                // UI မှာတော့ ဂဏန်းအမှန်ရမှ Update လုပ်တာ ပိုကောင်းပါတယ်
-                // item.twod က "--" မဟုတ်မှ save မယ်ဆိုရင် ဒီ if ကိုဖွင့်ပါ
+                // ⭐ အကြံပြုချက်: ဂဏန်းအမှန်ထွက်မှ (Dash မဟုတ်မှ) Save တာ ပိုကောင်းပါတယ်
                 // if (item.twod !== "--") {
                 const savedResult = await updateResultModel.findOneAndUpdate(
                     { session: uiSessionName },
@@ -53,12 +53,20 @@ const checkAndSaveResult = async (scrapedResponse, io) => {
                 }
                 // }
 
-                // STOPPING LOGIC
-                if (currentHour <= 12 && rawTime.includes("12:01")) {
+                // ===============================================
+                // ⭐ STOPPING CONDITION (အလုပ်ရပ်မည့် Logic အမှန်)
+                // ===============================================
+
+                // ၁။ မနက်ပိုင်း: ၁၂ နာရီ (12) ရောက်မှသာ ရပ်မယ်
+                // (၁၁ နာရီမှာ API က 12:01 ပို့လိုက်ရင် မရပ်အောင်လို့ပါ)
+                if (currentHour === 12 && rawTime.includes("12:01")) {
                     console.log("✅ Morning Session Done. Stopping...");
                     isSessionClosed = true;
                 }
-                else if (currentHour >= 14 && rawTime.includes("16:30")) {
+
+                    // ၂။ ညနေပိုင်း: ၁၆ နာရီ (4 PM) ရောက်မှသာ ရပ်မယ်
+                // (မင်းအဟောင်းက >= 14 ထားခဲ့တော့ 3 PM (15) မှာ ရပ်သွားတာပါ)
+                else if (currentHour >= 16 && rawTime.includes("16:30")) {
                     console.log("✅ Evening Session Done. Stopping...");
                     isSessionClosed = true;
                 }
@@ -82,7 +90,7 @@ const checkAndSaveResult = async (scrapedResponse, io) => {
     return isSessionClosed;
 };
 
-// ⭐ ပြင်လိုက်သော Logic (Remove & Push)
+// ⭐ Helper Logic (Remove & Push)
 async function saveToHistoryDB(date, time, item) {
     try {
         const newEntry = {
@@ -92,13 +100,11 @@ async function saveToHistoryDB(date, time, item) {
             value: item.value
         };
 
-        // ၁။ ဒီအချိန်နဲ့ Data ရှိပြီးသားဆိုရင် အရင်ဖျက်မယ် (Duplicate မဖြစ်အောင် & Update ဖြစ်အောင်)
         await historyForTwoDModel.updateOne(
             { date: date },
             { $pull: { child: { time: time } } }
         );
 
-        // ၂။ ပြီးမှ Data အသစ်ကို ထပ်ထည့်မယ် (Push)
         await historyForTwoDModel.findOneAndUpdate(
             { date: date },
             { $push: { child: newEntry } },

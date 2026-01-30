@@ -81,15 +81,6 @@ const startScheduler = (onDataUpdate, io) => {
         startIntervalScraping(15000, 'Evening Slow', onDataUpdate, io);
     }, cronOptions);
 
-    //Test
-    cron.schedule('20 14 * * 1-5', () => {
-        startIntervalScraping(15000, '2:20 PM Evening Slow', onDataUpdate, io);
-    }, cronOptions);
-
-    cron.schedule('50 15 * * 1-5', () => {
-        stopIntervalScraping();
-        startIntervalScraping(5000, 'Evening Fast', onDataUpdate, io);
-    }, cronOptions);
 
     cron.schedule('40 16 * * 1-5', async () => {
         await stopIntervalScraping();
@@ -98,7 +89,7 @@ const startScheduler = (onDataUpdate, io) => {
     // ==========================================
     // 🧪 TEST MODE
     // ==========================================
-    const runTest = false; // Production အတွက် false ထားပါ
+    const runTest = true; // Production အတွက် false ထားပါ
 
     if (runTest) {
         console.log("⚠️ TEST MODE ACTIVATED...");
