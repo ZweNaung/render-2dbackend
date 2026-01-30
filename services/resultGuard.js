@@ -10,14 +10,11 @@ const checkAndSaveResult = async (scrapedResponse, io) => {
     const results = scrapedResponse.results;
     let isSessionClosed = false;
 
-    // ⭐ Server Time (Asia/Yangon) - နာရီရော မိနစ်ပါ ယူမယ်
+    // ⭐ Server Time (Asia/Yangon)
     const now = new Date();
     const yangonTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Yangon' }));
-    const currentHour = yangonTime.getHours();   // 0-23
-    const currentMinute = yangonTime.getMinutes(); // 0-59
-
-    // Log ထုတ်ကြည့်မယ် (DEBUG) - ပြီးရင် ပြန်ဖျက်လို့ရပါတယ်
-    // console.log(`🕒 Yangon Time: ${currentHour}:${currentMinute}`);
+    const currentHour = yangonTime.getHours();
+    const currentMinute = yangonTime.getMinutes();
 
     const uiSessionMap = {
         "12:01:00": "12:01 PM",
@@ -34,45 +31,50 @@ const checkAndSaveResult = async (scrapedResponse, io) => {
     for (const item of results) {
         const rawTime = item.openTime;
 
-        // --- (A) UI RESULT သိမ်းခြင်း ---
+        // --- (A) UI RESULT သိမ်းခြင်း (SMART SAVE) ---
         const uiSessionName = uiSessionMap[rawTime];
         if (uiSessionName) {
             try {
-                // if (item.twod !== "--") { // ဂဏန်းအမှန်ထွက်မှ Save ချင်ရင် ဖွင့်ပါ
-                const savedResult = await updateResultModel.findOneAndUpdate(
-                    { session: uiSessionName },
-                    {
-                        twoD: item.twod,
-                        set: item.set,
-                        value: item.value,
-                        session: uiSessionName
-                    },
-                    { upsert: true, new: true }
-                );
+                // ၁။ Database ထဲမှာ ဒီ session နဲ့ ဂဏန်းတူတာ ရှိပြီးသားလား စစ်မယ်
+                const existingResult = await updateResultModel.findOne({
+                    session: uiSessionName,
+                    twoD: item.twod // ဂဏန်းပါ တူနေလား?
+                });
 
-                if (io) {
-                    io.emit("new_2d_result", savedResult);
-                    console.log(`🚀 Result Emitted for ${uiSessionName}`);
+                // ၂။ မရှိမှ (သို့) ဂဏန်းမတူမှ Update လုပ်မယ်
+                if (!existingResult) {
+                    const savedResult = await updateResultModel.findOneAndUpdate(
+                        { session: uiSessionName },
+                        {
+                            twoD: item.twod,
+                            set: item.set,
+                            value: item.value,
+                            session: uiSessionName
+                        },
+                        { upsert: true, new: true }
+                    );
+
+                    if (io) {
+                        io.emit("new_2d_result", savedResult);
+                        console.log(`🚀 Result Emitted for ${uiSessionName} (New/Updated)`);
+                    }
                 }
-                // }
+                // ရှိပြီးသားဆိုရင် ဘာမှမလုပ်ဘူး (Log လည်းမပြတော့ဘူး)
 
                 // ===============================================
-                // ⭐ STOPPING CONDITION (မိနစ်ပါ တိတိကျကျ စစ်ခြင်း)
+                // ⭐ STOPPING CONDITION
                 // ===============================================
-
-                // ၁။ မနက်ပိုင်း: ၁၂ နာရီ (12) ထိုးပြီး ၁ မိနစ် (01) ကျော်မှ ရပ်မယ်
+                // ၁။ မနက်ပိုင်း (၁၂:၀၁ ကျော်ရင် ရပ်မယ်)
                 if (currentHour === 12 && currentMinute >= 1 && rawTime.includes("12:01")) {
                     console.log("✅ Morning Session Done (12:01+). Stopping...");
                     isSessionClosed = true;
                 }
-
-                    // ၂။ ညနေပိုင်း: ၁၆ နာရီ (4 PM) ထိုးပြီး ၃၀ မိနစ် (30) ကျော်မှ ရပ်မယ်
-                // (ဒါမှ 4:18 PM မှာ မရပ်ဘဲ 4:30 PM အထိ စောင့်မှာပါ)
-                else if (currentHour === 16 && currentMinute >= 31 && rawTime.includes("16:30")) {
-                    console.log("✅ Evening Session Done (4:31+). Stopping...");
+                // ၂။ ညနေပိုင်း (၄:၃၀ ကျော်ရင် ရပ်မယ်)
+                else if (currentHour === 16 && currentMinute >= 30 && rawTime.includes("16:30")) {
+                    console.log("✅ Evening Session Done (4:30+). Stopping...");
                     isSessionClosed = true;
                 }
-                // Backup: ညနေ ၅ နာရီကျော်ရင်တော့ အတင်းရပ်မယ်
+                // Backup Stop
                 else if (currentHour >= 17) {
                     isSessionClosed = true;
                 }
@@ -82,7 +84,7 @@ const checkAndSaveResult = async (scrapedResponse, io) => {
             }
         }
 
-        // --- (B) HISTORY သိမ်းခြင်း ---
+        // --- (B) HISTORY သိမ်းခြင်း (SMART SAVE) ---
         const historyTime = historyTimeMap[rawTime];
         if (historyTime) {
             const dateStr = item.stockDate || new Date().toISOString().split('T')[0];
@@ -96,9 +98,26 @@ const checkAndSaveResult = async (scrapedResponse, io) => {
     return isSessionClosed;
 };
 
-// Helper Logic
+// ⭐ Helper Logic (Smart Save for History)
 async function saveToHistoryDB(date, time, item) {
     try {
+        // ၁။ အရင်ဆုံး Database ထဲမှာ ဒီရက်၊ ဒီအချိန်၊ ဒီဂဏန်း နဲ့ ရှိပြီးသားလား စစ်မယ်
+        const exists = await historyForTwoDModel.findOne({
+            date: date,
+            child: {
+                $elemMatch: {
+                    time: time,
+                    twoD: item.twod // ဂဏန်းပါ တူနေရမယ်
+                }
+            }
+        });
+
+        // ၂။ ရှိပြီးသားဆိုရင် (Duplicate) ဘာမှမလုပ်ဘဲ ကျော်သွားမယ်
+        if (exists) {
+            return;
+        }
+
+        // ၃။ မရှိသေးဘူး (သို့) ဂဏန်းပြောင်းသွားတယ်ဆိုမှ အဟောင်းဖျက် အသစ်ထည့်မယ်
         const newEntry = {
             time: time,
             twoD: item.twod,
@@ -117,7 +136,8 @@ async function saveToHistoryDB(date, time, item) {
             { upsert: true, new: true }
         );
 
-        console.log(`📜 History Saved: ${date} [${time}]`);
+        console.log(`📜 History Saved: ${date} [${time}] (Updated)`);
+
     } catch (error) {
         console.error(`❌ History Save Error: ${error.message}`);
     }

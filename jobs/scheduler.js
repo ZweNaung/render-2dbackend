@@ -89,7 +89,7 @@ const startScheduler = (onDataUpdate, io) => {
     // ==========================================
     // 🧪 TEST MODE
     // ==========================================
-    const runTest = true; // Production အတွက် false ထားပါ
+    const runTest = false; // Production အတွက် false ထားပါ
 
     if (runTest) {
         console.log("⚠️ TEST MODE ACTIVATED...");

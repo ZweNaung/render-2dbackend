@@ -83,7 +83,7 @@ startScheduler((scrapedResponse) => {
         const liveData = scrapedResponse.live;
 
         // ဂဏန်း မပြောင်းရင် Socket က မပို့ဘူး (Server သက်သာအောင်)
-        if (liveData.twoD === lastTwoD) return;
+        // if (liveData.twoD === lastTwoD) return;
 
         lastTwoD = liveData.twoD;
 
