@@ -77,7 +77,7 @@ app.get('/api/live', (req, res) => {
 let lastTwoD = null;
 
 
-startScheduler((scrapedResponse) => { // ဒီမှာ လာယူတာပါ
+startScheduler((scrapedResponse) => {
         if (!scrapedResponse || !scrapedResponse.live) return;
 
         const liveData = scrapedResponse.live;

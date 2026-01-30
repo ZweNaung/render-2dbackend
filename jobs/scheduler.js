@@ -1,116 +1,116 @@
-const cron = require('node-cron');
-const { scrapeData, closeBrowser } = require('../services/scrapeData');
-// resultGuard ကို လှမ်းခေါ်မယ်
-const { checkAndSaveResult } = require('../services/resultGuard');
+const updateResultModel = require('../model/updateResultModel');
+const historyForTwoDModel = require('../model/HistoryForTwoDModel');
 
-let isScraping = false;
-let intervalId = null;
+const checkAndSaveResult = async (scrapedResponse, io) => {
 
-/**
- * Interval-based scraper
- */
-const startIntervalScraping = (intervalMs, modeName, onDataUpdate, io) => {
-    if (intervalId) return;
+    // Log 1: Data ရောက်မရောက် စစ်မယ်
+    // console.log("🔍 Guard Checking...", scrapedResponse?.results?.length);
 
-    console.log(`▶️ ${modeName} started (${intervalMs / 1000}s)`);
-
-    intervalId = setInterval(async () => {
-        if (isScraping) return;
-
-        isScraping = true;
-        try {
-            // ⭐ ပြင်လိုက်တဲ့နေရာ (၁) - response တစ်ခုလုံးကို ဆွဲယူလိုက်တယ်
-            const scrapedResponse = await scrapeData();
-
-                 // app.js ဆီကို Live data ကော Result data ကော ပါတဲ့
-                // scrapedResponse တစ်ခုလုံးကို onDataUpdate callback နဲ့ ပို့ပေးလိုက်တာပါ
-                if (onDataUpdate) {
-                    onDataUpdate(scrapedResponse);
-                }
-
-                // ၂။ Database ထဲ သိမ်းဖို့အတွက်လည်း scrapedResponse ကိုပဲ သုံးမယ်
-            const shouldStop = await checkAndSaveResult(scrapedResponse, io);
-
-            if (shouldStop) {
-                console.log(`🛑 Result confirmed. Stopping ${modeName}...`);
-                await stopIntervalScraping();
-            }
-
-        } catch (e) {
-            console.error('❌ Scrape error:', e.message);
-        } finally {
-            isScraping = false;
-        }
-    }, intervalMs);
-};
-
-/**
- * Stop interval safely
- */
-const stopIntervalScraping = async () => {
-    if (intervalId) {
-        clearInterval(intervalId);
-        intervalId = null;
-        console.log('⏹️ Interval stopped');
+    if (!scrapedResponse || !scrapedResponse.results || scrapedResponse.results.length === 0) {
+        return false;
     }
-    // API သုံးထားလို့ closeBrowser က error မတက်ပေမယ့် ထည့်ထားတာ ပိုစိတ်ချရပါတယ်
-    await closeBrowser();
-};
 
-/**
- * Scheduler entry
- */
-const startScheduler = (onDataUpdate, io) => {
-    console.log('✅ Scheduler Started (Asia/Yangon)');
+    const results = scrapedResponse.results;
+    let isSessionClosed = false;
 
-    const cronOptions = {
-        scheduled: true,
-        timezone: 'Asia/Yangon'
+    // ⭐ လက်ရှိအချိန် (Server Time) ကို ယူမယ် (ရန်ကုန်အချိန်ရအောင် ညှိယူတာ ပိုသေချာပါတယ်)
+    const now = new Date();
+    const currentHour = parseInt(now.toLocaleString('en-US', { timeZone: 'Asia/Yangon', hour: 'numeric', hour12: false }));
+
+    // ၁။ UI အတွက် Session Map
+    const uiSessionMap = {
+        "12:01:00": "12:01 PM",
+        "16:30:00": "4:30 PM"
     };
 
-    // ==========================================
-    // ☀️ MORNING SESSION (9:50 - 12:10)
-    // ==========================================
-    cron.schedule('50 09 * * 1-5', () => {
-        startIntervalScraping(15000, 'Morning Slow', onDataUpdate, io);
-    }, cronOptions);
+    // ၂။ History အတွက် Time Map
+    const historyTimeMap = {
+        "11:00:00": "11:00",
+        "12:01:00": "12:00",
+        "15:00:00": "3:00",
+        "16:30:00": "4:00"
+    };
 
-    cron.schedule('50 11 * * 1-5', () => {
-        stopIntervalScraping();
-        startIntervalScraping(5000, 'Morning Fast', onDataUpdate, io);
-    }, cronOptions);
+    for (const item of results) {
+        const rawTime = item.openTime; // API ကလာတဲ့အချိန် (ဥပမာ: "12:01:00")
 
-    // Force Stop at 12:10 (Backup)
-    cron.schedule('10 12 * * 1-5', async () => {
-        await stopIntervalScraping();
-    }, cronOptions);
+        // --- (A) UI RESULT သိမ်းခြင်း ---
+        const uiSessionName = uiSessionMap[rawTime];
+        if (uiSessionName) {
+            try {
+                const savedResult = await updateResultModel.findOneAndUpdate(
+                    { session: uiSessionName },
+                    {
+                        twoD: item.twod,
+                        set: item.set,
+                        value: item.value,
+                        session: uiSessionName
+                    },
+                    { upsert: true, new: true }
+                );
 
-    // ==========================================
-    // 🌇 EVENING SESSION (1:50 - 4:40)
-    // ==========================================
-    cron.schedule('50 13 * * 1-5', () => {
-        startIntervalScraping(15000, 'Evening Slow', onDataUpdate, io);
-    }, cronOptions);
+                // Socket နဲ့ UI ကိုလှမ်းပို့မယ်
+                if (io) {
+                    io.emit("new_2d_result", savedResult);
+                    console.log(`🚀 Result Emitted for ${uiSessionName}`);
+                }
 
-    cron.schedule('50 15 * * 1-5', () => {
-        stopIntervalScraping();
-        startIntervalScraping(5000, 'Evening Fast', onDataUpdate, io);
-    }, cronOptions);
+                // ===============================================
+                // ⭐ STOPPING CONDITION (အလုပ်ရပ်မည့် အချိန်စစ်ခြင်း)
+                // ===============================================
 
-    // Force Stop at 16:40 (Backup)
-    cron.schedule('40 16 * * 1-5', async () => {
-        await stopIntervalScraping();
-    }, cronOptions);
+                // ၁။ မနက်ပိုင်း (နေ့လည် ၂ နာရီမတိုင်ခင်) ဆိုရင် '12:01' တွေ့မှ ရပ်မယ်
+                if (currentHour < 14 && rawTime.includes("12:01")) {
+                    console.log("✅ Morning Session Done. Stopping...");
+                    isSessionClosed = true;
+                }
 
-    // ==========================================
-    // 🧪 TEST MODE
-    // ==========================================
-    const runTest =  false; // Production တင်ရင် false ထားပါ
+                // ၂။ ညနေပိုင်း (နေ့လည် ၂ နာရီကျော်) ဆိုရင် '16:30' တွေ့မှ ရပ်မယ်
+                else if (currentHour >= 14 && rawTime.includes("16:30")) {
+                    console.log("✅ Evening Session Done. Stopping...");
+                    isSessionClosed = true;
+                }
 
-    if (runTest) {
-        console.log("⚠️ TEST MODE ACTIVATED...");
-        startIntervalScraping(10000, 'TEST_RUN', onDataUpdate, io);
+            } catch (err) {
+                console.error(`❌ UI Result Save Error:`, err.message);
+            }
+        }
+
+        // --- (B) HISTORY သိမ်းခြင်း ---
+        const historyTime = historyTimeMap[rawTime];
+        if (historyTime) {
+            const dateStr = item.stockDate || new Date().toISOString().split('T')[0];
+            const [year, month, day] = dateStr.split('-');
+            const formattedDate = `${day}-${month}-${year}`;
+
+            await saveToHistoryDB(formattedDate, historyTime, item);
+        }
     }
+
+    return isSessionClosed;
 };
 
-module.exports = startScheduler;
+// Helper Function
+async function saveToHistoryDB(date, time, item) {
+    try {
+        const newEntry = {
+            time: time,
+            twoD: item.twod,
+            set: item.set,
+            value: item.value
+        };
+
+        await historyForTwoDModel.findOneAndUpdate(
+            { date: date },
+            { $addToSet: { child: newEntry } },
+            { upsert: true, new: true }
+        );
+
+        // Log အရမ်းရှုပ်ရင် ဒါကို ပိတ်ထားလို့ရပါတယ်
+        console.log(`📜 History Saved: ${date} [${time}]`);
+    } catch (error) {
+        console.error(`❌ History Save Error: ${error.message}`);
+    }
+}
+
+module.exports = { checkAndSaveResult };
