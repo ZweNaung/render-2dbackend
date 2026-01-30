@@ -54,7 +54,7 @@ const checkAndSaveResult = async (scrapedResponse, io) => {
                 // }
 
                 // STOPPING LOGIC
-                if (currentHour < 14 && rawTime.includes("12:01")) {
+                if (currentHour <= 12 && rawTime.includes("12:01")) {
                     console.log("✅ Morning Session Done. Stopping...");
                     isSessionClosed = true;
                 }

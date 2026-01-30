@@ -81,6 +81,11 @@ const startScheduler = (onDataUpdate, io) => {
         startIntervalScraping(15000, 'Evening Slow', onDataUpdate, io);
     }, cronOptions);
 
+    //Test
+    cron.schedule('20 14 * * 1-5', () => {
+        startIntervalScraping(15000, '2:20 PM Evening Slow', onDataUpdate, io);
+    }, cronOptions);
+
     cron.schedule('50 15 * * 1-5', () => {
         stopIntervalScraping();
         startIntervalScraping(5000, 'Evening Fast', onDataUpdate, io);
