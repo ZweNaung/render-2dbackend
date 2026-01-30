@@ -76,11 +76,14 @@ app.get('/api/live', (req, res) => {
 // ===============================
 let lastTwoD = null;
 
-
 startScheduler((scrapedResponse) => {
+        // Data မပါရင် ဘာမှမလုပ်ဘူး
         if (!scrapedResponse || !scrapedResponse.live) return;
 
         const liveData = scrapedResponse.live;
+
+        // ဂဏန်း မပြောင်းရင် Socket က မပို့ဘူး (Server သက်သာအောင်)
+        if (liveData.twoD === lastTwoD) return;
 
         lastTwoD = liveData.twoD;
 
