@@ -71,7 +71,7 @@ const checkAndSaveResult = async (scrapedResponse, io) => {
                 }
                 // ၂။ ညနေပိုင်း (၄:၃၀ ကျော်ရင် ရပ်မယ်)
                 else if (currentHour === 16 && currentMinute >= 30 && rawTime.includes("16:30")) {
-                    console.log("✅ Evening Session Done (4:32+). Stopping...");
+                    console.log("✅ Evening Session Done (4:30+). Stopping...");
                     isSessionClosed = true;
                 }
                 // Backup Stop
@@ -144,6 +144,9 @@ async function saveToHistoryDB(date, time, item) {
 }
 
 module.exports = { checkAndSaveResult };
+
+
+
 //=========================
 //
 //=========================
