@@ -81,7 +81,13 @@ const startScheduler = (onDataUpdate, io) => {
         startIntervalScraping(15000, 'Evening Slow', onDataUpdate, io);
     }, cronOptions);
 
+    // 3:50 PM မှာ Fast Mode စမယ်
+    cron.schedule('50 15 * * 1-5', () => {
+        stopIntervalScraping();
+        startIntervalScraping(5000, 'Evening Fast', onDataUpdate, io);
+    }, cronOptions);
 
+    // 4:40 PM မှာ Backup အနေနဲ့ အတင်းပိတ်မယ် (resultGuard က 4:35 မှာ မပိတ်လိုက်နိုင်ရင် ဒါက ပိတ်ပေးလိမ့်မယ်)
     cron.schedule('40 16 * * 1-5', async () => {
         await stopIntervalScraping();
     }, cronOptions);

@@ -35,13 +35,13 @@ const checkAndSaveResult = async (scrapedResponse, io) => {
         const uiSessionName = uiSessionMap[rawTime];
         if (uiSessionName) {
             try {
-                // ၁။ Database ထဲမှာ ဒီ session နဲ့ ဂဏန်းတူတာ ရှိပြီးသားလား စစ်မယ်
+                // UI မှာ Dash ဖြစ်နေရင် (ဂဏန်းမထွက်သေးရင်) Update မလုပ်ဘူး (Optional)
+                // if (item.twod !== "--") {
                 const existingResult = await updateResultModel.findOne({
                     session: uiSessionName,
-                    twoD: item.twod // ဂဏန်းပါ တူနေလား?
+                    twoD: item.twod
                 });
 
-                // ၂။ မရှိမှ (သို့) ဂဏန်းမတူမှ Update လုပ်မယ်
                 if (!existingResult) {
                     const savedResult = await updateResultModel.findOneAndUpdate(
                         { session: uiSessionName },
@@ -59,22 +59,26 @@ const checkAndSaveResult = async (scrapedResponse, io) => {
                         console.log(`🚀 Result Emitted for ${uiSessionName} (New/Updated)`);
                     }
                 }
-                // ရှိပြီးသားဆိုရင် ဘာမှမလုပ်ဘူး (Log လည်းမပြတော့ဘူး)
+                // }
 
                 // ===============================================
-                // ⭐ STOPPING CONDITION
+                // ⭐ STOPPING CONDITION (Logic ပြင်ဆင်ထားသည်)
                 // ===============================================
+
                 // ၁။ မနက်ပိုင်း (၁၂:၀၁ ကျော်ရင် ရပ်မယ်)
                 if (currentHour === 12 && currentMinute >= 1 && rawTime.includes("12:01")) {
                     console.log("✅ Morning Session Done (12:01+). Stopping...");
                     isSessionClosed = true;
                 }
-                // ၂။ ညနေပိုင်း (၄:၃၀ ကျော်ရင် ရပ်မယ်)
-                else if (currentHour === 16 && currentMinute >= 30 && rawTime.includes("16:30")) {
-                    console.log("✅ Evening Session Done (4:30+). Stopping...");
+
+                    // ၂။ ညနေပိုင်း (၄:၃၅ ကျော်မှ ရပ်မယ် - ဂဏန်းအမှန်ထွက်ဖို့ ၅ မိနစ်စောင့်သည်)
+                // ⚠️ ပြင်လိုက်တဲ့နေရာ: currentMinute >= 35
+                else if (currentHour === 16 && currentMinute >= 35 && rawTime.includes("16:30")) {
+                    console.log("✅ Evening Session Done (4:35+). Stopping...");
                     isSessionClosed = true;
                 }
-                // Backup Stop
+
+                // Backup Stop (၅ နာရီကျော်ရင် အတင်းရပ်မယ်)
                 else if (currentHour >= 17) {
                     isSessionClosed = true;
                 }
@@ -91,7 +95,10 @@ const checkAndSaveResult = async (scrapedResponse, io) => {
             const [year, month, day] = dateStr.split('-');
             const formattedDate = `${day}-${month}-${year}`;
 
-            await saveToHistoryDB(formattedDate, historyTime, item);
+            // ဂဏန်းထွက်မှ (Dash မဟုတ်မှ) History ထဲ save မယ်ဆိုရင် ဒီ if ခံပါ
+            if (item.twod !== "--") {
+                await saveToHistoryDB(formattedDate, historyTime, item);
+            }
         }
     }
 
@@ -101,23 +108,18 @@ const checkAndSaveResult = async (scrapedResponse, io) => {
 // ⭐ Helper Logic (Smart Save for History)
 async function saveToHistoryDB(date, time, item) {
     try {
-        // ၁။ အရင်ဆုံး Database ထဲမှာ ဒီရက်၊ ဒီအချိန်၊ ဒီဂဏန်း နဲ့ ရှိပြီးသားလား စစ်မယ်
         const exists = await historyForTwoDModel.findOne({
             date: date,
             child: {
                 $elemMatch: {
                     time: time,
-                    twoD: item.twod // ဂဏန်းပါ တူနေရမယ်
+                    twoD: item.twod
                 }
             }
         });
 
-        // ၂။ ရှိပြီးသားဆိုရင် (Duplicate) ဘာမှမလုပ်ဘဲ ကျော်သွားမယ်
-        if (exists) {
-            return;
-        }
+        if (exists) return;
 
-        // ၃။ မရှိသေးဘူး (သို့) ဂဏန်းပြောင်းသွားတယ်ဆိုမှ အဟောင်းဖျက် အသစ်ထည့်မယ်
         const newEntry = {
             time: time,
             twoD: item.twod,
@@ -147,188 +149,152 @@ module.exports = { checkAndSaveResult };
 
 
 
-//=========================
-//
-//=========================
-
 // const updateResultModel = require('../model/updateResultModel');
+// const historyForTwoDModel = require('../model/HistoryForTwoDModel');
 //
-// // ⭐ Playwright မလိုတော့ပါ
+// const checkAndSaveResult = async (scrapedResponse, io) => {
 //
-// const checkAndSaveResult = async (currentLiveData, io) => {
-//     // 1. Data မပါလာရင် ဘာမှမလုပ်ဘူး
-//     if (!currentLiveData || !currentLiveData.results) {
+//     if (!scrapedResponse || !scrapedResponse.results || scrapedResponse.results.length === 0) {
 //         return false;
 //     }
 //
-//     const results = currentLiveData.results;
-//     let isSaved = false;
+//     const results = scrapedResponse.results;
+//     let isSessionClosed = false;
 //
-//     // API ကလာတဲ့ အချိန်ကို DB session နဲ့ ညှိပေးရမယ် (Mapping)
-//     const targetTimes = {
-//         "12:01:00": "12:01 PM", // API က 12:01:00 လို့လာရင် 12:01 PM session ထဲထည့်မယ်
-//         "16:30:00": "4:30 PM"   // API က 16:30:00 လို့လာရင် 4:30 PM session ထဲထည့်မယ်
+//     // ⭐ Server Time (Asia/Yangon)
+//     const now = new Date();
+//     const yangonTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Yangon' }));
+//     const currentHour = yangonTime.getHours();
+//     const currentMinute = yangonTime.getMinutes();
+//
+//     const uiSessionMap = {
+//         "12:01:00": "12:01 PM",
+//         "16:30:00": "4:30 PM"
 //     };
 //
-//     // 2. Result Array ထဲမှာ ထွက်ပြီးသားစာရင်းတွေ လိုက်စစ်မယ်
+//     const historyTimeMap = {
+//         "11:00:00": "11:00",
+//         "12:01:00": "12:00",
+//         "15:00:00": "3:00",
+//         "16:30:00": "4:30"
+//     };
+//
 //     for (const item of results) {
-//         const dbSession = targetTimes[item.open_time];
+//         const rawTime = item.openTime;
 //
-//         // ကိုယ်လိုချင်တဲ့ Session (၁၂:၀၁ သို့ ၄:၃၀) ဟုတ်ခဲ့ရင်
-//         if (dbSession) {
+//         // --- (A) UI RESULT သိမ်းခြင်း (SMART SAVE) ---
+//         const uiSessionName = uiSessionMap[rawTime];
+//
+//         if (uiSessionName) {
 //             try {
-//                 // DB ထဲမှာ ရှိပြီးသားလား၊ မရှိသေးရင် အသစ်ထည့်၊ ရှိရင် update လုပ်
-//                 // (Set, Value, TwoD အားလုံးကို Result list ထဲကအတိုင်း အတိအကျယူမယ်)
-//                 const savedResult = await updateResultModel.findOneAndUpdate(
-//                     { session: dbSession },
-//                     {
-//                         twoD: item.twod,   // API result array မှာ d အသေးနဲ့ လာတတ်လို့ သတိထားပါ
-//                         set: item.set,
-//                         value: item.value,
-//                         session: dbSession
-//                     },
-//                     { upsert: true, new: true, setDefaultsOnInsert: true }
-//                 );
+//                 // ၁။ Database ထဲမှာ ဒီ session နဲ့ ဂဏန်းတူတာ ရှိပြီးသားလား စစ်မယ်
+//                 const existingResult = await updateResultModel.findOne({
+//                     session: uiSessionName,
+//                     twoD: item.twod // ဂဏန်းပါ တူနေလား?
+//                 });
 //
-//                 console.log(`✅ Auto-Saved Result from API for ${dbSession}: ${savedResult.twoD}`);
+//                 // ၂။ မရှိမှ (သို့) ဂဏန်းမတူမှ Update လုပ်မယ်
+//                 if (!existingResult) {
+//                     const savedResult = await updateResultModel.findOneAndUpdate(
+//                         { session: uiSessionName },
+//                         {
+//                             twoD: item.twod,
+//                             set: item.set,
+//                             value: item.value,
+//                             session: uiSessionName
+//                         },
+//                         { upsert: true, new: true }
+//                     );
 //
-//                 // Client တွေကို Notification ပို့မယ်
-//                 if (io) {
-//                     io.emit("new_2d_result", {
-//                         twoD: savedResult.twoD,
-//                         set: savedResult.set,
-//                         value: savedResult.value,
-//                         session: savedResult.session
-//                     });
+//                     if (io) {
+//                         io.emit("new_2d_result", savedResult);
+//                         console.log(`🚀 Result Emitted for ${uiSessionName} (New/Updated)`);
+//                     }
+//                 }
+//                 // ရှိပြီးသားဆိုရင် ဘာမှမလုပ်ဘူး (Log လည်းမပြတော့ဘူး)
+//
+//                 // ===============================================
+//                 // ⭐ STOPPING CONDITION
+//                 // ===============================================
+//                 // ၁။ မနက်ပိုင်း (၁၂:၀၁ ကျော်ရင် ရပ်မယ်)
+//                 if (currentHour === 12 && currentMinute >= 1 && rawTime.includes("12:01")) {
+//                     console.log("✅ Morning Session Done (12:01+). Stopping...");
+//                     isSessionClosed = true;
+//                 }
+//                 // ၂။ ညနေပိုင်း (၄:၃၀ ကျော်ရင် ရပ်မယ်)
+//                 else if (currentHour === 16 && currentMinute >= 30 && rawTime.includes("16:30")) {
+//                     console.log("✅ Evening Session Done (4:30+). Stopping...");
+//                     isSessionClosed = true;
+//                 }
+//                 // Backup Stop
+//                 else if (currentHour >= 17) {
+//                     isSessionClosed = true;
 //                 }
 //
-//                 // တခုခု Save ဖြစ်သွားတာနဲ့ true ပြန်ပေးမယ် (Scheduler ရပ်ဖို့အတွက်)
-//                 isSaved = true;
-//
 //             } catch (err) {
-//                 console.error(`❌ DB Save Error for ${dbSession}:`, err.message);
+//                 console.error(`❌ UI Result Save Error:`, err.message);
 //             }
+//         }
+//
+//         // --- (B) HISTORY သိမ်းခြင်း (SMART SAVE) ---
+//         const historyTime = historyTimeMap[rawTime];
+//         if (historyTime) {
+//             const dateStr = item.stockDate || new Date().toISOString().split('T')[0];
+//             const [year, month, day] = dateStr.split('-');
+//             const formattedDate = `${day}-${month}-${year}`;
+//
+//             await saveToHistoryDB(formattedDate, historyTime, item);
 //         }
 //     }
 //
-//     return isSaved;
+//     return isSessionClosed;
 // };
 //
-// module.exports = { checkAndSaveResult };
-
-
-
-
-
-//==========================
-//PlayWright
-//==========================
-
-
-// const { chromium } = require('playwright');
-// const updateResultModel = require('../model/updateResultModel');
-//
-// // Status Check Function (Playwright)
-// const statusCheck = async () => {
-//     let browser = null;
+// // ⭐ Helper Logic (Smart Save for History)
+// async function saveToHistoryDB(date, time, item) {
 //     try {
-//         browser = await chromium.launch({
-//             headless: true,
-//             args: ['--no-sandbox', '--disable-setuid-sandbox']
-//         });
-//
-//         const context = await browser.newContext();
-//
-//         // Resource block
-//         await context.route('**/*', (route) => {
-//             if (['image', 'font', 'media'].includes(route.request().resourceType())) {
-//                 return route.abort();
+//         // ၁။ အရင်ဆုံး Database ထဲမှာ ဒီရက်၊ ဒီအချိန်၊ ဒီဂဏန်း နဲ့ ရှိပြီးသားလား စစ်မယ်
+//         const exists = await historyForTwoDModel.findOne({
+//             date: date,
+//             child: {
+//                 $elemMatch: {
+//                     time: time,
+//                     twoD: item.twod // ဂဏန်းပါ တူနေရမယ်
+//                 }
 //             }
-//             return route.continue();
 //         });
 //
-//         const page = await context.newPage();
+//         // ၂။ ရှိပြီးသားဆိုရင် (Duplicate) ဘာမှမလုပ်ဘဲ ကျော်သွားမယ်
+//         if (exists) {
+//             return;
+//         }
 //
-//         await page.goto('https://www.set.or.th/en/market/index/set/overview', {
-//             waitUntil: 'domcontentloaded',
-//             timeout: 60000
-//         });
+//         // ၃။ မရှိသေးဘူး (သို့) ဂဏန်းပြောင်းသွားတယ်ဆိုမှ အဟောင်းဖျက် အသစ်ထည့်မယ်
+//         const newEntry = {
+//             time: time,
+//             twoD: item.twod,
+//             set: item.set,
+//             value: item.value
+//         };
 //
-//         // Status စာသားရှာခြင်း
-//         const marketStatus = await page.evaluate(() => {
-//             const container = document.querySelector('.quote-market-status');
-//             if (container) {
-//                 const spanElement = container.querySelector('span');
-//                 return spanElement ? spanElement.innerText.trim() : null;
-//             }
-//             return null;
-//         });
+//         await historyForTwoDModel.updateOne(
+//             { date: date },
+//             { $pull: { child: { time: time } } }
+//         );
 //
-//         return marketStatus;
+//         await historyForTwoDModel.findOneAndUpdate(
+//             { date: date },
+//             { $push: { child: newEntry } },
+//             { upsert: true, new: true }
+//         );
+//
+//         console.log(`📜 History Saved: ${date} [${time}] (Updated)`);
 //
 //     } catch (error) {
-//         console.error("❌ Error in statusCheck:", error.message);
-//         return null;
-//     } finally {
-//         if (browser) await browser.close();
+//         console.error(`❌ History Save Error: ${error.message}`);
 //     }
-// };
-//
-// // ⭐ Main Logic: Status စစ်ပြီး DB ထဲသိမ်းခြင်း
-// const checkAndSaveResult = async (currentLiveData, io) => {
-//     if (!currentLiveData || currentLiveData.twoD === "--") {
-//         console.log("⚠️ No live data to save yet.");
-//         return false;
-//     }
-//
-//     console.log("🔍 Checking Market Status for Auto-Save...");
-//     const status = await statusCheck();
-//     console.log(`📊 Current Market Status: ${status}`);
-//
-//     let sessionToSave = null;
-//
-//     if (status === 'Intermission') {
-//         sessionToSave = "12:01 PM";
-//     } else if (status === 'Closed' || status === 'Close') {
-//         sessionToSave = "4:30 PM";
-//     }
-//
-//     if (sessionToSave) {
-//         try {
-//             const savedResult = await updateResultModel.findOneAndUpdate(
-//                 { session: sessionToSave },
-//                 {
-//                     twoD: currentLiveData.twoD,
-//                     set: currentLiveData.set,
-//                     value: currentLiveData.value,
-//                     session: sessionToSave
-//                 },
-//                 { upsert: true, new: true, setDefaultsOnInsert: true }
-//             );
-//
-//             console.log(`✅ Auto-Saved Result for ${sessionToSave}: ${savedResult.twoD}`);
-//
-//             if (io) {
-//                 io.emit("new_2d_result", {
-//                     twoD: savedResult.twoD,
-//                     set: savedResult.set,
-//                     value: savedResult.value,
-//                     session: savedResult.session
-//                 });
-//             }
-//
-//             // ⭐ Save လုပ်ပြီးကြောင်း true ပြန်ပေး
-//             return true;
-//
-//         } catch (err) {
-//             console.error("❌ DB Save Error:", err);
-//             return false;
-//         }
-//     } else {
-//         console.log("ℹ️ Market is Open/Unknown. No save needed.");
-//         return false;
-//     }
-// };
+// }
 //
 // module.exports = { checkAndSaveResult };
+//
 //
